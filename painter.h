@@ -11,18 +11,30 @@
 
 #include "lcd_driver.h"
 
-
+// Screen resolution
 #define PAINTER_SCR_HEI		LCD_SCR_HEI
 #define PAINTER_SCR_WID		LCD_SCR_WID
 #define PAINTER_SCR_HEI1	(PAINTER_SCR_HEI-1)
 #define PAINTER_SCR_WID1	(PAINTER_SCR_WID-1)
 
+/* Draw line options:
+ * 	PAINTER_DRAW_BM_HOLD:		Hold bitmask in context
+ * 	PAINTER_DRAW_POLY_CLOSE:	Close polygon path in polygon drawing
+ */
 #define PAINTER_DRAW_BM_HOLD	0x1
 #define PAINTER_DRAW_POLY_CLOSE	0x2
 
-#define PAINTER_FILL_FFLEN		0x1
-#define PAINTER_FILL_FFLEN_M	0xf
+// /* Fill options:
+//  * 	PAINTER_FILL_FFLEN:			search queue length start bits
+//  * 								range:0~15
+//  */
+// #define PAINTER_FILL_FFLEN		0x1
+// #define PAINTER_FILL_FFLEN_M	0xf
 
+/* Text render options:
+ * 	PAINTER_STR_SHADOW:			Text shadow length start bits
+ * 								range 0~7
+ */
 #define PAINTER_STR_SHADOW	0x1
 #define PAINTER_STR_SHADOW_M	0x3
 

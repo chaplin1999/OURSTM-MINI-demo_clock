@@ -25,7 +25,13 @@ static GraphicContext _d_g_ctx = {
 	.f = 0
 };
 
-
+/**
+ * @brief  Init default context bitmask
+ * @param  w:       width
+ * @param  h:       height
+ * @param  pattern: fillchar with pattern, 0 for none
+ *                  try 0xaa, you may like it.
+ */
 bitmask Painter_SetupContextBitmask(u16 w, u16 h, u8 pattern){
 	u16 i, size = (u32)w*(u32)h>>3;
 	if (_d_dl_ctx.bm != 0L) free(_d_dl_ctx.bm);
@@ -36,22 +42,35 @@ bitmask Painter_SetupContextBitmask(u16 w, u16 h, u8 pattern){
 	return _d_dl_ctx.bm;
 }
 
+// Move default context bitmask start point
 void Painter_LocateContextBitmask(s16 x, s16 y){
 	_d_dl_ctx.bmx =x;
 	_d_dl_ctx.bmy =y;
 }
 
+// Relative move default context bitmask start point
 void Painter_TranslateContextBitmask(s16 x, s16 y){
 	_d_dl_ctx.bmx +=x;
 	_d_dl_ctx.bmy +=y;
 }
 
+// W3C Canvas SetTransform, not implemented
 void Painter_SetTransform(s32 a, s32 b, s32 c, s32 d, s32 e, s32 f){
 	_d_g_ctx.a = a;_d_g_ctx.b = b;_d_g_ctx.c = c;
 	_d_g_ctx.d = d;_d_g_ctx.e = e;_d_g_ctx.f = f;
 }
 
-
+/**
+ * @brief  Draw a line from start to end with linewith
+ * @param  sx:   x of start point
+ * @param  sy:   y of start point
+ * @param  ex:   x of end point
+ * @param  ey:   y of end point
+ * @param  fc:   foreground color
+ * @param  lw:   line width |<-lw->|
+ * @param  flag: draw line options, available: PAINTER_DRAW_BM_HOLD
+ * @return default context bitmask after line drawn
+ */
 bitmask Painter_DrawLine(u16 sx, u16 sy, u16 ex, u16 ey, u16 fc, u16 lw, u8 flag){
 
 	lw = (lw==0)?1:lw;
@@ -90,6 +109,16 @@ bitmask Painter_DrawLine(u16 sx, u16 sy, u16 ex, u16 ey, u16 fc, u16 lw, u8 flag
 	return _d_dl_ctx.bm;
 }
 
+/**
+ * @brief  Draw a polygon describe in xs, ys
+ * @param  xs:   sequence of x of points
+ * @param  ys:   sequence of y of points
+ * @param  size: sequence length
+ * @param  fc:   foreground color
+ * @param  lw:   line width |<-lw->|
+ * @param  flag: draw line options, available: PAINTER_DRAW_BM_HOLD, PAINTER_DRAW_POLY_CLOSE
+ * @return default context bitmask after polygon drawn
+ */
 bitmask Painter_DrawPoly(u16* xs, u16* ys, u16 size, u16 fc, u16 lw, u8 flag){
 	u16 i, xMin, xMax, yMin, yMax;
 	s16 bmx, bmy;
@@ -131,7 +160,7 @@ bitmask Painter_DrawPoly(u16* xs, u16* ys, u16 size, u16 fc, u16 lw, u8 flag){
 		_d_dl_ctx.bmy = bmy + ys[i-1] - ys[0];
 		LCD_SetWindow(min(xs[i-1],xs[i]), min(ys[i-1],ys[i]), abs(_d_dl_ctx.rx)+1, abs(_d_dl_ctx.ry)+1);
 		LCD_DrawLineBody(_d_dl_ctx);
-		LCD_DrawLineEnd(_d_dl_ctx, xs[i-1], ys[i-1], xs[i], xs[i], lh);
+		LCD_DrawLineEnd(_d_dl_ctx, xs[i-1], ys[i-1], xs[i], ys[i], lh);
 		_d_dl_ctx.bmx += _d_dl_ctx.rx;
 		_d_dl_ctx.bmy += _d_dl_ctx.ry;
 		_d_dl_ctx.rx = -_d_dl_ctx.rx;
@@ -151,7 +180,9 @@ bitmask Painter_DrawPoly(u16* xs, u16* ys, u16 size, u16 fc, u16 lw, u8 flag){
 		_d_dl_ctx.bmy = bmy + ys[size-1] - ys[0];
 		LCD_SetWindow(min(xs[size-1],xs[0]), min(ys[size-1],ys[0]), abs(_d_dl_ctx.rx)+1, abs(_d_dl_ctx.ry)+1);
 		LCD_DrawLineBody(_d_dl_ctx);
-		LCD_DrawLineEnd(_d_dl_ctx, xs[size-1], ys[i-1], xs[0], xs[0], lh);
+		LCD_DrawLineEnd(_d_dl_ctx, xs[size-1], ys[i-1], xs[0], ys[0], lh);
+		_d_dl_ctx.bmx += _d_dl_ctx.rx;
+		_d_dl_ctx.bmy += _d_dl_ctx.ry;
 		_d_dl_ctx.rx = -_d_dl_ctx.rx;
 		_d_dl_ctx.ry = -_d_dl_ctx.ry;
 		LCD_DrawLineEnd(_d_dl_ctx, xs[0], ys[0], xs[size-1], ys[size-1], lh);
@@ -162,7 +193,16 @@ bitmask Painter_DrawPoly(u16* xs, u16* ys, u16 size, u16 fc, u16 lw, u8 flag){
 	return _d_dl_ctx.bm;
 }
 
-
+/**
+ * @brief  Draw a circle with linewith lw
+ * @param  cx:  x of center point
+ * @param  cy:  y of center point
+ * @param  r:   radius of circle
+ * @param  fc:  foreground color
+ * @param  lw:  line width |<-lw->|
+ * @param  flag: draw line options, available: PAINTER_DRAW_BM_HOLD
+ * @return default context bitmask after circle drawn
+ */
 bitmask Painter_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw, u8 flag){
 
 	if (0 == (flag & PAINTER_DRAW_BM_HOLD)) {
@@ -174,6 +214,13 @@ bitmask Painter_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw, u8 flag){
 	return LCD_DrawCircle(cx, cy, r, fc, lw, _d_dl_ctx.bm, _d_dl_ctx.bmx, _d_dl_ctx.bmy, _d_dl_ctx.bmw);
 }
 
+/**
+ * @brief  Put image on screen with 8-bit blending alpha a8
+ * @param  data: image data
+ * @param  left: image left pos
+ * @param  top:  image top pos
+ * @param  a8:   8-bit alpha
+ */
 void Painter_PutImage(const u16* data, u16 left, u16 top, u8 a8){
 	u16 skip = data[0];
 	u16 channel = data[1];
@@ -195,6 +242,13 @@ void Painter_PutImage(const u16* data, u16 left, u16 top, u8 a8){
 	}
 }
 
+/**
+ * @brief  Mask image on screen with 8-bit mask alpha
+ * @param  data: image data
+ * @param  left: image left pos
+ * @param  top:  image top pos
+ * @param  a8:   8-bit alpha array as mask
+ */
 void Painter_MaskImage(const u16* data, u16 left, u16 top, const u8* a8){
 	u16 skip = data[0];
 	u16 channel = data[1];
@@ -214,6 +268,14 @@ void Painter_MaskImage(const u16* data, u16 left, u16 top, const u8* a8){
 	}
 }
 
+
+/**
+ * @brief  Clip and put image on screen according to bitmask
+ * @param  data: image data
+ * @param  left: image left pos
+ * @param  top:  image top pos
+ * @param  mask: bitmask
+ */
 void Painter_BitMaskImage(const u16* data, u16 left, u16 top, const bitmask mask){
 	u16 skip = data[0];
 	u16 channel = data[1];
@@ -234,6 +296,13 @@ void Painter_BitMaskImage(const u16* data, u16 left, u16 top, const bitmask mask
 }
 
 
+/**
+ * @brief  Put a single character on screen
+ * @param  glyph: glyph data
+ * @param  left:  char left pos
+ * @param  top:   char top pos
+ * @param  fc:    foreground color
+ */
 void Painter_PutChar(const u8* glyph, u16 left, u16 top, u16 fc){
 	//head = skip, font_size, width;
 	LCD_SetWindow(left, top, glyph[2], glyph[1]);
@@ -241,6 +310,18 @@ void Painter_PutChar(const u8* glyph, u16 left, u16 top, u16 fc){
 }
 
 
+/**
+ * @brief  Put a string on screen region, glyph and size info will be auto matched in resource.
+ * @param  str:       the string
+ * @param  font_size: font size
+ * @param  fc:        foreground color
+ * @param  bc:        background color, 0 to be transparent
+ * @param  left:      string start left pos
+ * @param  top:       string start top pos
+ * @param  w:         text region width
+ * @param  h:         text region height
+ * @param  flag:      text render options, available: PAINTER_STR_SHADOW
+ */
 void Painter_PutString(const u16* str, u8 font_size, u16 fc, u16 bc,
 					 u16 left, u16 top, u16 w, u16 h, u8 flag){
 	u16 *fs_index_segment;
@@ -276,6 +357,8 @@ void Painter_PutString(const u16* str, u8 font_size, u16 fc, u16 bc,
 		y += font_size;
 	}
 }
+
+// BELOWS ARE BEING TESTED.
 
 void Painter_Fill_Floodfill(u16 left, u16 top, u16 right, u16 bottom
 							 , u16 sx, u16 sy, s16 mx, s16 my

@@ -14,7 +14,7 @@ static void delay(__IO u32 nCount){
 
 static void delay_ms(__IO u32 nCount){
 	for(; nCount != 0; nCount--)
-		delay(SystemCoreClock/1000/6);
+		delay(SystemCoreClock/1000/6); // how it works~
 }
 
 
@@ -23,6 +23,12 @@ static GraphicContext _d_g_ctx = {
 	.invert = 0
 };
 
+/**
+ * @brief  Setup direction and inversion of display
+ * applies to LCD driver and context
+ * @param  direction: 0:normal, 1:right, 2: up-side-down, 3:left
+ * @param  inv: 0:none, 1:invert
+ */
 void LCD_SetEntryMode(u8 direction, u8 inv){
 	u16 reg = 0x1000;
 	u8 LUT[] = {0b110, 0b011, 0b000, 0b101, 0b100, 0b111, 0b010, 0b111};
@@ -33,12 +39,21 @@ void LCD_SetEntryMode(u8 direction, u8 inv){
 	LCD_WR_CMD(0x0003, reg | (LUT[direction << inv] << 3));
 }
 
+/**
+ * @brief  Start pixel action from this point.
+ * be aware of the window opened and the context should be NORMAL
+ * use LCD_SetPoint_InCtx if the screen is rotated.
+ */
 void LCD_SetPoint(u16 x, u16 y){
 	LCD_WR_CMD(0x20, x);
 	LCD_WR_CMD(0x21, y);
 	LCD_WR_REG(0x22);
 }
 
+/**
+ * @brief  Start pixel action from this point.
+ * be aware of the window opened.
+ */
 void LCD_SetPoint_InCtx(u16 x, u16 y){
 	switch (_d_g_ctx.direction){
 	case 1:
@@ -60,6 +75,12 @@ void LCD_SetPoint_InCtx(u16 x, u16 y){
 	LCD_WR_REG(0x22);
 }
 
+/**
+ * @brief  OpenWindow action in 8080 interface
+ * see 8.2.24. Horizontal and Vertical RAM Address Position (R50h, R51h, R52h, R53h)
+ * in ILI9325 datasheet page 73.
+ * Context direction is read to ensure wanted display.
+ */
 void LCD_SetWindow(u16 left, u16 top, u16 width, u16 height){
 	u16 _left, _top, _width, _height, _x, _y;
 
@@ -94,6 +115,7 @@ void LCD_SetWindow(u16 left, u16 top, u16 width, u16 height){
 	LCD_SetPoint(_x, _y);
 }
 
+// Linear combinations
 
 //static u32 linear_x155(u32 a, u32 b, u8 u){ // u= u+ 0.5 max=15.5/16
 //	return (a*u + b*(16-u) + ((a>>1)&0x70707) - ((b>>1)&0x70707));
@@ -119,6 +141,11 @@ inline void LCD_PutPixel(u16 c565){
 	LCD_WR_DAT(c565);
 }
 
+/**
+ * @brief  Blend a foreground color to screen with an alpha value
+ * @param  fc888: foreground color in 32bit=0:8,R:8,G:8,B:8 format
+ * @param  a4: 4-bit+ alpha range from 0 to 16
+ */
 void LCD_BlendPixel_x16(const u32 fc888, const u8 a4){
 	u16 c565;
 	u32 c888;
@@ -129,6 +156,11 @@ void LCD_BlendPixel_x16(const u32 fc888, const u8 a4){
 	LCD_WR_DAT(c565);
 }
 
+/**
+ * @brief  Blend a foreground color to screen with an alpha value
+ * @param  fcaba: foreground color in 32bit=0:1,R:10,G:11,B:10 format
+ * @param  a5: 5-bit+ alpha range from 0 to 32
+ */
 void LCD_BlendPixel_x32(const u32 fcaba, const u8 a5){
 	u16 c565;
 	u32 caba;
@@ -139,6 +171,7 @@ void LCD_BlendPixel_x32(const u32 fcaba, const u8 a5){
 	LCD_WR_DAT(c565);
 }
 
+// Better and faster alpha conversion lookup table
 const u8 LUT15to32[16]={
 	0,  2,  4,  6,  9, 11, 13, 15, 17, 19, 21, 23, 26, 28, 30, 32
 };
@@ -177,14 +210,19 @@ const u8 LUT255to32[256]={
 	32
 };
 
+/**
+ * Export for the LUT before
+ */
 u8 LCD_ScaleAlpha_32(u8 v, u8 m){
 	switch (m){
 	case 15:return LUT15to32[v];
 	case 225:return LUT225to32[v];
 	case 255:return LUT255to32[v];
-	default:return (u16)(v)*32/m;
+	default:return (u16)(v)*32/m; // OH SUCK~
 	}
 }
+
+// You should SetWindow before this group of functions, the size is of pixels
 
 void LCD_GetImage_RGB565(u16 *buf, u32 size){
 	u16 *p = buf;
@@ -237,6 +275,9 @@ void LCD_PutChar_RGB4444(const u8* glyph, u16 size, u16 fc){
 	}
 }
 
+/**
+ * Blending stands for an overlay action on the screen with transparency
+ */
 void LCD_BlendImage_RGB565(const u16 *buf, u32 size, u8 a8){
 	u16 *p = (u16 *)buf;
 	u16 t0;
@@ -260,6 +301,9 @@ void LCD_BlendImage_RGB4444(const u16 *buf, u32 size, u8 a8){
 	}
 }
 
+/**
+ * Masking stands for an overlay action on the screen with alpha values in each pixel
+ */
 void LCD_MaskImage_RGB565(const u16 *buf, u32 size, const u8* a8){
 	u16 *p = (u16 *)buf;
 	u8 *q = (u8 *)a8;
@@ -284,6 +328,12 @@ void LCD_MaskImage_RGB4444(const u16 *buf, u32 size, const u8* a8){
 	}
 }
 
+/**
+ * BitMasking is the same action with W3C Canvas Clip()
+ * It is compressed into bits so a full screen clipping data is possible
+ * to be storaged in 10k RAM.
+ * Use LCD_GetBitMask, LCD_ResetBitMask, LCD_SetBitMask to access one bit mask.
+ */
 void LCD_BitMaskImage_RGB565(const u16 *buf, u32 size, const bitmask mask){
 	u16 *p = (u16 *)buf;
 	u8 *q = (bitmask)mask, t1 = 0, cnt;
@@ -350,6 +400,13 @@ void LCD_SetBitMask(bitmask mask, u16 x, u16 y, u16 w){
 	mask[t>>3] |= 1<<y;
 }
 
+
+/**
+ * @brief  Draw the main body of a line within linewith |<-lw->|
+ * two end part is required to draw the entire line.
+ * PLEASE USE Painter_DrawLine INSTEAD IN TOP LEVEL.
+ * @param  ctx: a draw line context
+ */
 void LCD_DrawLineBody(DrawLineContext ctx){
 	static u16 t;
 	static u32 c;
@@ -378,6 +435,17 @@ void LCD_DrawLineBody(DrawLineContext ctx){
 	}
 }
 
+/**
+ * @brief  Draw one end of a line on the start point,
+ * this function described a round end, to change the line end style,
+ * modify the criteria after (dd0,dd1,ctx.ll):
+ * <1>:(ctx.llhw1>dl) in the range of +- lw of the line pivot
+ * <2>:(dd0+ctx.ll<<dd1) in the range of end round with radius lw
+ * <3>:(dl<=ctx.llhw) full grayscale region
+ * <3>:(dl>ctx.llhw) antialias region
+ * PLEASE USE Painter_DrawLine INSTEAD IN TOP LEVEL.
+ * @param  ctx: a draw line context
+ */
 void LCD_DrawLineEndPart(DrawLineContext ctx){
 	static u16 t;
 	static u32 c;
@@ -394,13 +462,13 @@ void LCD_DrawLineEndPart(DrawLineContext ctx){
 				dl = (ctx.rx*y-ctx.ry*x);
 				dl = dl * dl;
 				dl = (dl + (ctx.ll>>1))/ ctx.ll;
-				if (ctx.llhw1>dl){
+				if (ctx.llhw1>dl){ // <1>
 					dd0 = yy0 + x*x;
 					dd1 = yy1 + (x-ctx.rx)*(x-ctx.rx);
-					dl = (dd0+ctx.ll<dd1)?dd0:(dd1+ctx.ll<dd0)?dd1:dl;
+					dl = (dd0+ctx.ll<dd1)?dd0:dl;// <2>
 					if (ctx.llhw1>dl){
 						c = C_RGB565toABAh5(t);
-						if (dl<=ctx.llhw) {
+						if (dl<=ctx.llhw) {// <3>
 							c = linear_x32(ctx.fc, c, ctx.alpha32);
 							LCD_SetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy+y, ctx.bmw);
 						}
@@ -415,6 +483,16 @@ void LCD_DrawLineEndPart(DrawLineContext ctx){
 }
 
 
+/**
+ * @brief  Draw two ends of a line, open proper window for line end parts
+ * PLEASE USE Painter_DrawLine INSTEAD IN TOP LEVEL.
+ * @param  ctx: a draw line context
+ * @param  sx:  x of start point
+ * @param  sy:  y of start point
+ * @param  ex:  x of end point
+ * @param  ey:  y of end point
+ * @param  lh:  half line width |<-lh-|-lh->|
+ */
 void LCD_DrawLineEnd(DrawLineContext ctx, u16 sx, u16 sy, u16 ex, u16 ey, u16 lh){
 	u16 xMin, xMax, yMin, yMax;
 
@@ -464,6 +542,20 @@ void LCD_DrawLineEnd(DrawLineContext ctx, u16 sx, u16 sy, u16 ex, u16 ey, u16 lh
 	}
 }
 
+/**
+ * @brief  Draw a circle with linewith lw
+ * PLEASE USE Painter_DrawCircle INSTEAD IN TOP LEVEL.
+ * @param  cx:  x of center point
+ * @param  cy:  y of center point
+ * @param  r:   radius of circle
+ * @param  fc:  foreground color
+ * @param  lw:  line width |<-lw->|
+ * @param  bitmask: applied bitmask
+ * @param  bmx:     x of bitmask start point(center)
+ * @param  bmy:     y of bitmask start point(center)
+ * @param  bmw:     bitmask line width
+ * @return circle-drawed bitmask
+ */
 bitmask LCD_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw
 					   , bitmask bm, s16 bmx, s16 bmy, u16 bmw){
 	s16 x, y;
@@ -475,13 +567,14 @@ bitmask LCD_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw
 	rre = (r+lw)*(r+lw); rri = (r>lw)?(r-lw)*(r-lw):0;
 	rre1 = (r+lw+1)*(r+lw+1); rri1 = (r>lw+1)?(r-lw-1)*(r-lw-1):0;
 	ge = (r+lw)*2+1; gi = (r>lw)?(r-lw)*2-1:1;
+
 	LCD_SetWindow(cx - r - lw, cy - r - lw, (r+lw)*2+1, (r+lw)*2+1);
 	for (y=-r-lw;y<=r+lw;y++){
 		yy = y*y;
 		for (x=-r-lw;x<=r+lw;x++){
 			dd = x*x+yy;
 			c565 = LCD_RD_DAT1();
-			if ((rri1<dd) && (rre1>dd)){
+			if ((!LCD_GetBitMask(bm, bmx+x, bmy+y, bmw))&&(rri1<dd) && (rre1>dd)){
 				if (dd>=rri){
 					if (dd<=rre){
 						a0 = LUT15to32[a];
@@ -501,6 +594,14 @@ bitmask LCD_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw
 }
 
 
+/**
+ * @brief  Fill a rectangle
+ * @param  left: left pos
+ * @param  top:  top pos
+ * @param  w:    rectangle width
+ * @param  h:    rectangle height
+ * @param  fc:   foreground color
+ */
 void LCD_FillRectangle_RGB565(u16 left, u16 top, u16 w, u16 h, u16 fc){
 	u16 x, y;
 	LCD_SetWindow(left, top, w, h);
@@ -524,6 +625,13 @@ void LCD_FillRectangle_RGB4444(u16 left, u16 top, u16 w, u16 h, u16 fc){
 }
 
 
+/**
+ * @brief  Fill a circle
+ * @param  cx:  x of ceneter
+ * @param  cy:  y of center
+ * @param  r:   radius
+ * @param  fc:  foreground color
+ */
 void LCD_FillCircle_RGB565(u16 cx, u16 cy, u16 r, u16 fc){
 	s16 x, y;
 	u16 g, c565;
@@ -575,6 +683,24 @@ void LCD_FillCircle_RGB4444(u16 cx, u16 cy, u16 r, u16 fc){
 	}
 }
 
+/**
+ * @brief  Floodfill on screen according to bitmask from a start point
+ * @param  left: fill region left pos
+ * @param  top:  fill region top pos
+ * @param  w:    fill region  width
+ * @param  h:    fill region  height
+ * @param  sx:   x of start point
+ * @param  sy:   y of start point
+ * @param  mx:   x of start point in bitmask
+ * @param  my:   y of start point in bitmask
+ * @param  mask: the bitmask
+ * @param  bmw:  bitmask line width
+ * @param  fc:   foreground color
+ * @param  qlen: FIFO search queue size
+ * @param  qx:   FIFO search queue stores x
+ * @param  qy:   FIFO search queue stores y
+ * @return bitmask atfer floodfill
+ */
 bitmask LCD_Fill_Floodfill4_Core(u16 left, u16 top, u16 right, u16 bottom
 							   , u16 sx, u16 sy, s16 mx, s16 my
 							   , bitmask mask, u16 bmw, u16 fc, u16 qlen
@@ -609,6 +735,23 @@ bitmask LCD_Fill_Floodfill4_Core(u16 left, u16 top, u16 right, u16 bottom
 }
 
 
+/**
+ * @brief  Fill shadow for a shape according to bitmask
+ * @param  left:   fill region left pos
+ * @param  top:    fill region top pos
+ * @param  right:  fill region right pos
+ * @param  bottom: fill region bottom pos
+ * @param  mask:   the bitmask
+ * @param  mx:     x of start point in bitmask
+ * @param  my:     y of start point in bitmask
+ * @param  bmw:    bitmask line width
+ * @param  sc:     shadow color
+ * @param  sx:     shadow offset in x
+ * @param  sy:     shadow offset in y
+ * @param  step5:  shadow interpolation steps: signed 5 bits+:-32~32bit+
+ *                 negative step5 for shadow elimination action(revesed opacity)
+ *
+ */
 void LCD_Fill_BitMaskShadow(u16 left, u16 top, u16 right, u16 bottom
 							, bitmask mask, s16 mx, s16 my, u16 bmw
 							, u16 sc, s16 sx, s16 sy, s16 step5){
@@ -655,7 +798,9 @@ void LCD_Fill_BitMaskShadow(u16 left, u16 top, u16 right, u16 bottom
 
 
 
-
+/**
+ * @brief  Init FSMC interface on STM32 for ourstm MINI
+ */
 void LCD_Cmd_InitFSMC(){
 	GPIO_InitTypeDef GPIO_InitStructure;
 	FSMC_NORSRAMInitTypeDef  FSMC_NORSRAMInitStructure;
@@ -719,6 +864,10 @@ void LCD_Cmd_InitFSMC(){
 	FSMC_NORSRAMCmd(FSMC_Bank1_NORSRAM1, ENABLE);
 }
 
+/**
+ * @brief  Init backlight control on STM32 for ourstm MINI
+ * TODO: add PWM support (TIM4 remap?)
+ */
 void LCD_Cmd_InitBacklight(){
 	GPIO_InitTypeDef GPIO_InitStructure;
 //	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
@@ -732,6 +881,10 @@ void LCD_Cmd_InitBacklight(){
 	GPIO_SetBits(GPIOD, GPIO_Pin_13);
 }
 
+/**
+ * @brief  Generate nReset signal for driver
+ * See: ILI9325AN
+ */
 void LCD_Cmd_NReset(){
 	GPIO_SetBits(GPIOE, GPIO_Pin_1);
 	delay_ms(1);
@@ -741,10 +894,14 @@ void LCD_Cmd_NReset(){
 	delay_ms(50);
 }
 
+/**
+ * @brief  Init LCD
+ * See: ILI9325AN
+ */
 void LCD_Cmd_Init(void)
 {
 	LCD_Cmd_NReset();
-	assert_param(LCD_RD_REG(0) == 0x9325);
+	assert_param(LCD_RD_REG(0) == 0x9325); // ILI9325 only
 
 	//************* Start Initial Sequence **********//
 	LCD_WR_CMD(0x0001, 0x0100); // set SS and SM bit
@@ -804,6 +961,10 @@ void LCD_Cmd_Init(void)
 
 }
 
+/**
+ * @brief  Enter sleep mode for LCD
+ * See: ILI9325AN
+ */
 void LCD_Cmd_EnterSleep(void)
 {
 	LCD_WR_CMD(0x0007, 0x0131); // Set D1=0, D0=1
@@ -820,6 +981,10 @@ void LCD_Cmd_EnterSleep(void)
 	LCD_WR_CMD(0x0010, 0x0082); // SAP, BT[3:0], APE, AP, DSTB, SLP
 }
 
+/**
+ * @brief  Exit sleep mode for LCD
+ * See: ILI9325AN
+ */
 void LCD_Cmd_ExitSleep(void)
 {
 	//*************Power On sequence ******************//

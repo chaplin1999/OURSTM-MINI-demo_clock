@@ -31,7 +31,6 @@
 
 #define C_ALPHA4(c)	(c & 0xf)
 #define C_ALPHA5(c)	(c & 0x1f)
-#define C_ALPHA6(c)	(c & 0x1f)
 #define C_ALPHA8(c)	(c & 0xff)
 #define C_RGB565(r, g, b)		((uint16_t)(((r)<<8)|(((g)<<3)&0x07e0)|((b)>>3)))
 #define C_RGBA4444(r, g, b, a)	((uint16_t)(\

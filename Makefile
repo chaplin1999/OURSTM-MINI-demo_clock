@@ -2,7 +2,8 @@
 SRC = $(wildcard *.c)
 SRC += syscall_mini.c
 SRC += stm32f10x_gpio.c stm32f10x_rcc.c
-SRC += stm32f10x_fsmc.c stm32f10x_tim.c
+SRC += stm32f10x_fsmc.c
+# SRC += stm32f10x_tim.c
 
 # build options
 # debug build?
