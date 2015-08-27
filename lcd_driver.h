@@ -31,7 +31,8 @@
 
 #define C_ALPHA4(c)	(c & 0xf)
 #define C_ALPHA5(c)	(c & 0x1f)
-#define C_ALPHA8(c)	(c & 0xff)
+//#define C_ALPHA8(c)	(c & 0xff)
+#define C_ALPHA8(c)	((u8)(c))
 #define C_RGB565(r, g, b)		((uint16_t)(((r)<<8)|(((g)<<3)&0x07e0)|((b)>>3)))
 #define C_RGBA4444(r, g, b, a)	((uint16_t)(\
 	(((r)<<8)&0xf000)|(((g)<<4)&0xf00)|((b)&0xf0)|(((a)>>4)&0xf)\
@@ -100,16 +101,16 @@ extern u8 LCD_ScaleAlpha_32(u8 v, u8 m);
 
 extern u16 LCD_GetPixel();
 extern void LCD_PutPixel(u16 c565);
-extern void LCD_BlendPixel_x16(u32 fc888, u8 a4);
-extern void LCD_BlendPixel_x32(u32 fcaba, u8 a5);
+extern void LCD_MixPixel_x16(u32 fc888, u8 a4);
+extern void LCD_MixPixel_x32(u32 fcaba, u8 a5);
 
 extern void LCD_GetImage_RGB565(u16 *buf, u32 size);
 extern void LCD_PutImage_RGB565(const u16 *buf, u32 size);
 extern void LCD_PutImage_RGB4444(const u16 *buf, u32 size);
 extern void LCD_PutChar_RGB565(const u8* glyph, u16 size, u16 fc, u8 a8);
 extern void LCD_PutChar_RGB4444(const u8* glyph, u16 size, u16 fc);
-extern void LCD_BlendImage_RGB565(const u16 *buf, u32 size, u8 a8);
-extern void LCD_BlendImage_RGB4444(const u16 *buf, u32 size, u8 a8);
+extern void LCD_MixImage_RGB565(const u16 *buf, u32 size, u8 a8);
+extern void LCD_MixImage_RGB4444(const u16 *buf, u32 size, u8 a8);
 
 extern u8 LCD_GetBitMask(bitmask mask, u16 x, u16 y, u16 w);
 extern void LCD_ResetBitMask(bitmask mask, u16 x, u16 y, u16 w);

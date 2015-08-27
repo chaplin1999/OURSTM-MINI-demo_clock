@@ -215,7 +215,7 @@ bitmask Painter_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw, u8 flag){
 }
 
 /**
- * @brief  Put image on screen with 8-bit blending alpha a8
+ * @brief  Put image on screen with 8-bit mixing alpha a8
  * @param  data: image data
  * @param  left: image left pos
  * @param  top:  image top pos
@@ -231,11 +231,11 @@ void Painter_PutImage(const u16* data, u16 left, u16 top, u8 a8){
 	switch (channel){
 	case 3:
 		if (a8 == 0xff) LCD_PutImage_RGB565(data + skip, width * height);
-		else LCD_BlendImage_RGB565(data + skip, width * height, a8);
+		else LCD_MixImage_RGB565(data + skip, width * height, a8);
 		break;
 	case 4:
 		if (a8 == 0xff) LCD_PutImage_RGB4444(data + skip, width * height);
-		else LCD_BlendImage_RGB4444(data + skip, width * height, a8);
+		else LCD_MixImage_RGB4444(data + skip, width * height, a8);
 		break;
 	default:
 		break;

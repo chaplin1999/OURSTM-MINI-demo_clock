@@ -115,17 +115,16 @@ void LCD_SetWindow(u16 left, u16 top, u16 width, u16 height){
 	LCD_SetPoint(_x, _y);
 }
 
-// Linear combinations
 
-//static u32 linear_x155(u32 a, u32 b, u8 u){ // u= u+ 0.5 max=15.5/16
+//static u32 mix_x155(u32 a, u32 b, u8 u){ // u= u+ 0.5 max=15.5/16
 //	return (a*u + b*(16-u) + ((a>>1)&0x70707) - ((b>>1)&0x70707));
 //}
 
-static u32 linear_x16(u32 a, u32 b, u8 u){ // max=16
+static u32 mix_x16(u32 a, u32 b, u8 u){ // max=16
 	return a*u + b*(16-u);
 }
 
-static u32 linear_x32(u32 a, u32 b, u8 u){ // max=32
+static u32 mix_x32(u32 a, u32 b, u8 u){ // max=32
 	return a*u + b*(32-u);
 }
 
@@ -142,31 +141,31 @@ inline void LCD_PutPixel(u16 c565){
 }
 
 /**
- * @brief  Blend a foreground color to screen with an alpha value
+ * @brief  Mix a foreground color to screen with an alpha value
  * @param  fc888: foreground color in 32bit=0:8,R:8,G:8,B:8 format
  * @param  a4: 4-bit+ alpha range from 0 to 16
  */
-void LCD_BlendPixel_x16(const u32 fc888, const u8 a4){
+void LCD_MixPixel_x16(const u32 fc888, const u8 a4){
 	u16 c565;
 	u32 c888;
 	c565 = LCD_RD_DAT1();
 	c888 = C_RGB565to888h4(c565);
-	c888 = linear_x16(fc888, c888, a4);
+	c888 = mix_x16(fc888, c888, a4);
 	c565 = C_RGB888to565(c888);
 	LCD_WR_DAT(c565);
 }
 
 /**
- * @brief  Blend a foreground color to screen with an alpha value
+ * @brief  Mix a foreground color to screen with an alpha value
  * @param  fcaba: foreground color in 32bit=0:1,R:10,G:11,B:10 format
  * @param  a5: 5-bit+ alpha range from 0 to 32
  */
-void LCD_BlendPixel_x32(const u32 fcaba, const u8 a5){
+void LCD_MixPixel_x32(const u32 fcaba, const u8 a5){
 	u16 c565;
 	u32 caba;
 	c565 = LCD_RD_DAT1();
 	caba = C_RGB565toABAh5(c565);
-	caba = linear_x32(fcaba, caba, a5);
+	caba = mix_x32(fcaba, caba, a5);
 	c565 = C_RGBABAto565(caba);
 	LCD_WR_DAT(c565);
 }
@@ -246,7 +245,7 @@ void LCD_PutImage_RGB4444(const u16 *buf, u32 size){
 	while (size--){
 		t0 = *p++;
 		fc0 = C_RGB4444toABAh5(t0);
-		LCD_BlendPixel_x32(fc0, LUT15to32[C_ALPHA4(t0)]);
+		LCD_MixPixel_x32(fc0, LUT15to32[C_ALPHA4(t0)]);
 	}
 }
 
@@ -257,8 +256,8 @@ void LCD_PutChar_RGB565(const u8* glyph, u16 size, u16 fc, u8 a8){
 	fc0 = C_RGB565toABAh5(fc);
 	while (size--){
 		t0 = *p++;
-		LCD_BlendPixel_x32(fc0, (u16)(a8)*(t0&0xf)/118);
-		LCD_BlendPixel_x32(fc0, (u16)(a8)*(t0>>4) /118);
+		LCD_MixPixel_x32(fc0, (u16)(a8)*(t0&0xf)/118);
+		LCD_MixPixel_x32(fc0, (u16)(a8)*(t0>>4) /118);
 	}
 }
 
@@ -270,15 +269,15 @@ void LCD_PutChar_RGB4444(const u8* glyph, u16 size, u16 fc){
 	fc0 = C_RGB4444toABAh5(fc);
 	while (size--){
 		t0 = *p++;
-		LCD_BlendPixel_x32(fc0, LUT225to32[fa0*(t0&0xf)]);
-		LCD_BlendPixel_x32(fc0, LUT225to32[fa0*(t0>>4) ]);
+		LCD_MixPixel_x32(fc0, LUT225to32[fa0*(t0&0xf)]);
+		LCD_MixPixel_x32(fc0, LUT225to32[fa0*(t0>>4) ]);
 	}
 }
 
 /**
- * Blending stands for an overlay action on the screen with transparency
+ * Mix stands for an overlay action on the screen with transparency
  */
-void LCD_BlendImage_RGB565(const u16 *buf, u32 size, u8 a8){
+void LCD_MixImage_RGB565(const u16 *buf, u32 size, u8 a8){
 	u16 *p = (u16 *)buf;
 	u16 t0;
 	u32 fc0;
@@ -286,18 +285,18 @@ void LCD_BlendImage_RGB565(const u16 *buf, u32 size, u8 a8){
 	while (size--){
 		t0 = *p++;
 		fc0 = C_RGB565toABAh5(t0);
-		LCD_BlendPixel_x32(fc0, a8);
+		LCD_MixPixel_x32(fc0, a8);
 	}
 }
 
-void LCD_BlendImage_RGB4444(const u16 *buf, u32 size, u8 a8){
+void LCD_MixImage_RGB4444(const u16 *buf, u32 size, u8 a8){
 	u16 *p = (u16 *)buf;
 	u16 t0;
 	u32 fc0;
 	while (size--){
 		t0 = *p++;
 		fc0 = C_RGB4444toABAh5(t0);
-		LCD_BlendPixel_x32(fc0, (u32)(a8)*C_ALPHA4(t0)/118);
+		LCD_MixPixel_x32(fc0, (u32)(a8)*C_ALPHA4(t0)/118);
 	}
 }
 
@@ -312,7 +311,7 @@ void LCD_MaskImage_RGB565(const u16 *buf, u32 size, const u8* a8){
 	while (size--){
 		t0 = *p++;
 		fc0 = C_RGB565toABAh5(t0);
-		LCD_BlendPixel_x32(fc0, LUT255to32[*q++]);
+		LCD_MixPixel_x32(fc0, LUT255to32[*q++]);
 	}
 }
 
@@ -324,7 +323,7 @@ void LCD_MaskImage_RGB4444(const u16 *buf, u32 size, const u8* a8){
 	while (size--){
 		t0 = *p++;
 		fc0 = C_RGB4444toABAh5(t0);
-		LCD_BlendPixel_x32(fc0, LUT255to32[*q++]);
+		LCD_MixPixel_x32(fc0, LUT255to32[*q++]);
 	}
 }
 
@@ -366,7 +365,7 @@ void LCD_BitMaskImage_RGB4444(const u16 *buf, u32 size, const bitmask mask){
 		if (t1 & 1){
 			t0 = *p;
 			fc0 = C_RGB4444toABAh5(t0);
-			LCD_BlendPixel_x32(fc0, LUT15to32[C_ALPHA4(t0)]);
+			LCD_MixPixel_x32(fc0, LUT15to32[C_ALPHA4(t0)]);
 		}
 		else {
 			t0 = LCD_RD_DAT1();
@@ -423,10 +422,10 @@ void LCD_DrawLineBody(DrawLineContext ctx){
 				if (ctx.llhw1>dl){
 					c = C_RGB565toABAh5(t);
 					if (dl<=ctx.llhw) {
-						c = linear_x32(ctx.fc, c, ctx.alpha32);
+						c = mix_x32(ctx.fc, c, ctx.alpha32);
 						LCD_SetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy+y, ctx.bmw);
 					}
-					else c = linear_x32(ctx.fc, c, ctx.alpha32*(ctx.llhw1-dl)/ctx.grad);
+					else c = mix_x32(ctx.fc, c, ctx.alpha32*(ctx.llhw1-dl)/ctx.grad);
 					t = C_RGBABAto565(c);
 				}
 			}
@@ -469,10 +468,10 @@ void LCD_DrawLineEndPart(DrawLineContext ctx){
 					if (ctx.llhw1>dl){
 						c = C_RGB565toABAh5(t);
 						if (dl<=ctx.llhw) {// <3>
-							c = linear_x32(ctx.fc, c, ctx.alpha32);
+							c = mix_x32(ctx.fc, c, ctx.alpha32);
 							LCD_SetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy+y, ctx.bmw);
 						}
-						else c = linear_x32(ctx.fc, c, ctx.alpha32*(ctx.llhw1-dl)/ctx.grad);
+						else c = mix_x32(ctx.fc, c, ctx.alpha32*(ctx.llhw1-dl)/ctx.grad);
 						t = C_RGBABAto565(c);
 					}
 				}
@@ -584,7 +583,7 @@ bitmask LCD_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw
 				}
 				else a0 = a*(dd-rri1)*2/gi;
 				caba = C_RGB565toABAh5(c565);
-				caba = linear_x32(fc0, caba, a0);
+				caba = mix_x32(fc0, caba, a0);
 				c565 = C_RGBABAto565(caba);
 			}
 			LCD_WR_DAT(c565);
@@ -619,7 +618,7 @@ void LCD_FillRectangle_RGB4444(u16 left, u16 top, u16 w, u16 h, u16 fc){
 	LCD_SetWindow(left, top, w, h);
 	for (y=0;y<h;y++){
 		for (x=0;x<w;x++){
-			LCD_BlendPixel_x32(fc0, LUT15to32[a]);
+			LCD_MixPixel_x32(fc0, LUT15to32[a]);
 		}
 	}
 }
@@ -650,7 +649,7 @@ void LCD_FillCircle_RGB565(u16 cx, u16 cy, u16 r, u16 fc){
 				c565 = LCD_RD_DAT1();
 				if (rr1>dd){
 					caba = C_RGB565toABAh5(c565);
-					caba = linear_x32(fc0, caba, (rr1-dd)*32/g);
+					caba = mix_x32(fc0, caba, (rr1-dd)*32/g);
 					c565 = C_RGBABAto565(caba);
 				}
 			}
@@ -675,7 +674,7 @@ void LCD_FillCircle_RGB4444(u16 cx, u16 cy, u16 r, u16 fc){
 			if (rr1>dd){
 				a0 = (dd<=rr)?LUT15to32[a]:(a*(rr1-dd)*2/g);
 				caba = C_RGB565toABAh5(c565);
-				caba = linear_x32(fc0, caba, a0);
+				caba = mix_x32(fc0, caba, a0);
 				c565 = C_RGBABAto565(caba);
 			}
 			LCD_WR_DAT(c565);
@@ -724,7 +723,7 @@ bitmask LCD_Fill_Floodfill4_Core(u16 left, u16 top, u16 right, u16 bottom
 	while (head != tail){
 		POP;
 		LCD_SetPoint_InCtx(sx + cx, sy + cy);
-		LCD_BlendPixel_x32(fc0, a0);
+		LCD_MixPixel_x32(fc0, a0);
 		if ((sx+cx+1<=right) && (!LCD_GetBitMask(mask, mx + cx + 1, my + cy, bmw))) PUSH(cx+1, cy);
 		if ((sx+cx>=left+1)  && (!LCD_GetBitMask(mask, mx + cx - 1, my + cy, bmw))) PUSH(cx-1, cy);
 		if ((sx+cx+1<=bottom)&& (!LCD_GetBitMask(mask, mx + cx, my + cy + 1, bmw))) PUSH(cx, cy+1);
@@ -780,7 +779,7 @@ void LCD_Fill_BitMaskShadow(u16 left, u16 top, u16 right, u16 bottom
 				update_min(sum, 32);
 				if (inv) sum = 32 - sum;
 				caba = C_RGB565toABAh5(c565);
-				caba = linear_x32(sc0, caba, sum);
+				caba = mix_x32(sc0, caba, sum);
 				c565 = C_RGBABAto565(caba);
 			}
 		}

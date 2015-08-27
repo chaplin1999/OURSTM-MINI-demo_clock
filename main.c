@@ -19,7 +19,7 @@ void long_shadow(){ // WE LOVE IT! NO ANTIALIAS!!
 	for (y=30;y<240;y++)for (x=30;x<240;x++){
 		if (((x-120)*(x-120)+(y-120)*(y-120)<119*119)&&
 			(x>y-138)&&(x<y+138)&&(x+y>240))
-				LCD_BlendPixel_x32(0x0, 12);
+				LCD_MixPixel_x32(0x0, 12);
 		else
 			LCD_GetPixel();
 	}
