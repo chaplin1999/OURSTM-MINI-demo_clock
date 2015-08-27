@@ -103,8 +103,8 @@ build: obj_std
 res.c: pre-resource
 
 pre-resource:
-#	echo '#include <stdint.h>' > res.c
-#	echo '#include <stdint.h>' > res.h
+# 	echo '#include <stdint.h>' > res.c
+# 	echo '#include <stdint.h>' > res.h
 	./cvt_font.py
 	./cvt_image.py
 

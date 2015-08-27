@@ -64,7 +64,7 @@ typedef struct {
 	u32 ll, llhw, llhw1;		// ll=sqr(line length), llhw=sqr(half linewidth), llhw1=sqr(half linewidth+1)
 	u32 fc;						// foreground color in RGB888h
 	u8	alpha32;					// foreground alpha in 4bit
-	s16 bmw, bmx, bmy;			// bitmark width, bitmark offset
+	u16 bmw, bmx, bmy;			// bitmark width, bitmark offset
 	bitmask bm;
 } DrawLineContext;
 
@@ -124,7 +124,7 @@ extern void LCD_DrawLineBody(DrawLineContext ctx);
 //extern void LCD_DrawLineEndPart(DrawLineContext ctx);
 extern void LCD_DrawLineEnd(DrawLineContext ctx, u16 sx, u16 sy, u16 ex, u16 ey, u16 lh);
 extern bitmask LCD_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw
-					   , bitmask bm, s16 bmx, s16 bmy, u16 bmw);
+					   , bitmask bm, u16 bmx, u16 bmy, u16 bmw);
 
 extern void LCD_FillRectangle_RGB565(u16 left, u16 top, u16 w, u16 h, u16 fc);
 extern void LCD_FillRectangle_RGB4444(u16 left, u16 top, u16 w, u16 h, u16 fc);
@@ -132,11 +132,11 @@ extern void LCD_FillCircle_RGB565(u16 cx, u16 cy, u16 r, u16 fc);
 extern void LCD_FillCircle_RGB4444(u16 cx, u16 cy, u16 r, u16 fc);
 
 extern bitmask LCD_Fill_Floodfill4_Core(u16 left, u16 top, u16 right, u16 bottom
-										, u16 sx, u16 sy, s16 mx, s16 my
+										, u16 sx, u16 sy, u16 mx, u16 my
 										, bitmask mask, u16 bmw, u16 fc, u16 qlen
 										, s16 *qx, s16* qy);
 extern void LCD_Fill_BitMaskShadow(u16 left, u16 top, u16 right, u16 bottom
-								   , bitmask mask, s16 mx, s16 my
+								   , bitmask mask, u16 mx, u16 my
 								   , u16 bmw, u16 sc, s16 sx, s16 sy, s16 step5);
 
 #endif // LCD_DRIVER_H
