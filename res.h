@@ -24,16 +24,18 @@ extern const uint16_t res_string_7[];
 extern const uint16_t res_string_8[];
 /*9*/
 extern const uint16_t res_string_9[];
-/*10*/
+/*对于在快速处理器上使用的较慢显示控制器,使用端口线可能是唯一的解决方案。这种访问显示器的方法有一个缺点,比直接总线接口稍微慢些,但是缓存能最小化对显示器的访问,因此显示更新不会显著减慢。所有需要做的事情就是定义例程或宏,设置或读取显示器。*/
 extern const uint16_t res_string_10[];
-/*11*/
+/*10*/
 extern const uint16_t res_string_11[];
-/*12*/
+/*11*/
 extern const uint16_t res_string_12[];
-/*:*/
+/*12*/
 extern const uint16_t res_string_13[];
-/* */
+/*:*/
 extern const uint16_t res_string_14[];
-extern const uint16_t res_glyph_index[];
+/* */
+extern const uint16_t res_string_15[];
+extern const uint32_t res_glyph_index[];
 extern const uint8_t res_glyphs[];
 extern const uint16_t res_img_res_lp_jpg[];

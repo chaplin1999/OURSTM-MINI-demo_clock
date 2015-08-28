@@ -127,6 +127,7 @@ void PendSV_Handler(void)
 {
 }
 
+extern __IO u32 _sys_tick;
 /**
   * @brief  This function handles SysTick Handler.
   * @param  None
@@ -134,6 +135,9 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
+	_sys_tick++;
+	if ((_sys_tick / 1000)&1) GPIO_SetBits(GPIOB, GPIO_Pin_5);
+	else GPIO_ResetBits(GPIOB, GPIO_Pin_5);
 }
 
 /******************************************************************************/

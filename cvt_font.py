@@ -20,7 +20,7 @@ extern const uint8_t %s[];
 extern const uint16_t %s[];
 '''
 , index = '''\
-extern const uint16_t %s[];
+extern const uint32_t %s[];
 '''
 )
 
@@ -36,7 +36,7 @@ const uint8_t %s[] = {%s};
 const uint16_t %s[] = {%s};
 '''
 , index = '''\
-const uint16_t %s[] = {%s};
+const uint32_t %s[] = {%s};
 '''
 )
 
@@ -99,7 +99,7 @@ def render(charset, fontsize, datalist=[]): # Render each char to raw grayscales
 		font = ImageFont.truetype(FONT, fontsize)
 	else:
 		font = ImageFont.load_default()
-	
+	print("Render:%s" % fontsize)
 	for char in charset:
 		canvas = Image.new('L', (fontsize, fontsize))
 		painter = ImageDraw.Draw(canvas)
@@ -111,11 +111,12 @@ def render(charset, fontsize, datalist=[]): # Render each char to raw grayscales
 			width = fontsize
 		else:
 			padding_w = 0
+#		padding_h = (fontsize - size[1])/2
 		padding_h = fontsize - size[1]
-		padding_h = PADDING
+		if width==fontsize: padding_h = PADDING
 		print("size %s\t:%s\t:%s" % (char.encode('utf-8'), width, padding_h))
 		painter.text((padding_w, padding_h), char, font=font, fill = (255))	
-		#canvas.show()
+#		canvas.show()
 		datalist.append(np.array(canvas, dtype = np.uint8)[:,:width] >> 4)
 	return datalist
 	
@@ -170,9 +171,11 @@ def dump2code(strlist, datalist, fn, mode = None, comment = None):
 		s += '\n\t'
 		
 	g = "0"
+	offset = 1
 	for key in glyph_index: # Save index
 		data = glyph_index[key] # Meta data before char index
-		g += ",\t%s,\t%s" % (len(data) + 2, key)
+		offset += len(data) + 2	
+		g += ",\t%s,\t%s" % (offset, key)
 		for i, d in enumerate(data):
 			if i % 10 == 0: g+='\n\t' # Makes it beautiful
 			g += ",\t" + hex(int(d))
@@ -199,7 +202,10 @@ for s in strlist: print(s.encode('utf-8'))
 
 if charset:
 	data0 = []
+#	FONT = " "
 	data0 = render(charset, 14, data0) # add 14px font size
+	FONT = "/usr/share/fonts/truetype/DroidSansFallbackFull.ttf"
+	data0 = render(charset, 24, data0) # add 24px font size
 	data0 = render(charset, 48, data0) # add 48px font size
 	data1 = []
 	for d in data0:

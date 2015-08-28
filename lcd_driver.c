@@ -68,7 +68,7 @@ void LCD_SetPoint_InCtx(u16 x, u16 y){
 		LCD_WR_CMD(0x20, LCD_SCR_WID1 - y);
 		LCD_WR_CMD(0x21, x);
 		break;
-	case 0:
+	default:
 		LCD_WR_CMD(0x20, x);
 		LCD_WR_CMD(0x21, y);
 	}
@@ -129,9 +129,9 @@ static u32 mix_x32(u32 a, u32 b, u8 u){ // max=32
 }
 
 
-inline u16 LCD_GetPixel(){
+inline u16 LCD_GetPixel(){ // FIXME:HAS READBACK ERROR PROBLEM!!!
 	u16 c565;
-	c565 = LCD_RD_DAT1();
+	c565 = LCD_RD_DAT2();
 	LCD_WR_DAT(c565);
 	return c565;
 }
@@ -148,7 +148,7 @@ inline void LCD_PutPixel(u16 c565){
 void LCD_MixPixel_x16(const u32 fc888, const u8 a4){
 	u16 c565;
 	u32 c888;
-	c565 = LCD_RD_DAT1();
+	c565 = LCD_RD_DAT2();
 	c888 = C_RGB565to888h4(c565);
 	c888 = mix_x16(fc888, c888, a4);
 	c565 = C_RGB888to565(c888);
@@ -163,7 +163,7 @@ void LCD_MixPixel_x16(const u32 fc888, const u8 a4){
 void LCD_MixPixel_x32(const u32 fcaba, const u8 a5){
 	u16 c565;
 	u32 caba;
-	c565 = LCD_RD_DAT1();
+	c565 = LCD_RD_DAT2();
 	caba = C_RGB565toABAh5(c565);
 	caba = mix_x32(fcaba, caba, a5);
 	c565 = C_RGBABAto565(caba);
@@ -171,9 +171,10 @@ void LCD_MixPixel_x32(const u32 fcaba, const u8 a5){
 }
 
 // Better and faster alpha conversion lookup table
-const u8 LUT15to32[16]={
-	0,  2,  4,  6,  9, 11, 13, 15, 17, 19, 21, 23, 26, 28, 30, 32
-};
+//const u8 LUT15to32[16]={
+//	0,  2,  4,  6,  9, 11, 13, 15, 17, 19, 21, 23, 26, 28, 30, 32
+//};
+//#define C_A15to32(x) (LUT15to32[x])
 const u8 LUT225to32[226]={
 	0,  0,  0,  0,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,
 	2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  4,  4,  5,  5,
@@ -190,6 +191,8 @@ const u8 LUT225to32[226]={
    29, 29, 29, 29, 30, 30, 30, 30, 30, 30, 30, 31, 31, 31, 31, 31, 31,
    31, 32, 32, 32, 32
 };
+//#define C_A15to32(x) (LUT15to32[x])
+#define C_A2255to32(x) ((x*15+3)/7)
 const u8 LUT255to32[256]={
 	0,  0,  0,  0,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,
 	2,  2,  2,  3,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  4,
@@ -214,7 +217,7 @@ const u8 LUT255to32[256]={
  */
 u8 LCD_ScaleAlpha_32(u8 v, u8 m){
 	switch (m){
-	case 15:return LUT15to32[v];
+	case 15:return C_A15to32(v);
 	case 225:return LUT225to32[v];
 	case 255:return LUT255to32[v];
 	default:return (u16)(v)*32/m; // OH SUCK~
@@ -226,7 +229,7 @@ u8 LCD_ScaleAlpha_32(u8 v, u8 m){
 void LCD_GetImage_RGB565(u16 *buf, u32 size){
 	u16 *p = buf;
 	while (size--){
-		*p = LCD_RD_DAT1();
+		*p = LCD_RD_DAT2();
 		LCD_WR_DAT(*p++);
 	}
 }
@@ -245,7 +248,7 @@ void LCD_PutImage_RGB4444(const u16 *buf, u32 size){
 	while (size--){
 		t0 = *p++;
 		fc0 = C_RGB4444toABAh5(t0);
-		LCD_MixPixel_x32(fc0, LUT15to32[C_ALPHA4(t0)]);
+		LCD_MixPixel_x32(fc0, C_A15to32(C_ALPHA4(t0)));
 	}
 }
 
@@ -335,45 +338,69 @@ void LCD_MaskImage_RGB4444(const u16 *buf, u32 size, const u8* a8){
  */
 void LCD_BitMaskImage_RGB565(const u16 *buf, u32 size, const bitmask mask){
 	u16 *p = (u16 *)buf;
-	u8 *q = (bitmask)mask, t1 = 0, cnt;
-	u16 t0;
-	cnt = 0;
+	u8 *q = (bitmask)mask, t1;
+	while (size>=8){
+		t1 = *q++;
+		LCD_WR_DAT((t1&0x1)?(*p):LCD_RD_DAT2());p++;
+		LCD_WR_DAT((t1&0x2)?(*p):LCD_RD_DAT2());p++;
+		LCD_WR_DAT((t1&0x4)?(*p):LCD_RD_DAT2());p++;
+		LCD_WR_DAT((t1&0x8)?(*p):LCD_RD_DAT2());p++;
+		LCD_WR_DAT((t1&0x10)?(*p):LCD_RD_DAT2());p++;
+		LCD_WR_DAT((t1&0x20)?(*p):LCD_RD_DAT2());p++;
+		LCD_WR_DAT((t1&0x40)?(*p):LCD_RD_DAT2());p++;
+		LCD_WR_DAT((t1&0x80)?(*p):LCD_RD_DAT2());p++;
+		size-=8;
+	}
+	t1 = *q;
 	while (size--){
-		if (cnt == 0){
-			t1 = *q++;
-			cnt = 8;
-		}
-		t0 = (t1&1)?(*p):LCD_RD_DAT1();
-		LCD_WR_DAT(t0);
+		LCD_WR_DAT((t1&1)?(*p):LCD_RD_DAT2());
 		p++;
 		t1 >>= 1;
-		cnt--;
 	}
 }
 
 void LCD_BitMaskImage_RGB4444(const u16 *buf, u32 size, const bitmask mask){
 	u16 *p = (u16 *)buf;
-	u8 *q = (bitmask)mask, t1 = 0, cnt;
+	u8 *q = (bitmask)mask, t1;
 	u16 t0;
-	u32 fc0;
-	cnt = 0;
+	while (size>=8){
+		t1 = *q++;
+		if (t1 & 1){t0 = *p;
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
+		}else LCD_GetPixel();p++;
+		if (t1 & 2){t0 = *p;
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
+		}else LCD_GetPixel();p++;
+		if (t1 & 4){t0 = *p;
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
+		}else LCD_GetPixel();p++;
+		if (t1 & 8){t0 = *p;
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
+		}else LCD_GetPixel();p++;
+		if (t1 & 0x10){t0 = *p;
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
+		}else LCD_GetPixel();p++;
+		if (t1 & 0x20){t0 = *p;
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
+		}else LCD_GetPixel();p++;
+		if (t1 & 0x40){t0 = *p;
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
+		}else LCD_GetPixel();p++;
+		if (t1 & 0x80){t0 = *p;
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
+		}else LCD_GetPixel();p++;
+		p++;
+		size-=8;
+	}
+	t1 = *q;
 	while (size--){
-		if (cnt == 0){
-			t1 = *q++;
-			cnt = 8;
-		}
 		if (t1 & 1){
 			t0 = *p;
-			fc0 = C_RGB4444toABAh5(t0);
-			LCD_MixPixel_x32(fc0, LUT15to32[C_ALPHA4(t0)]);
+			LCD_MixPixel_x32(C_RGB4444toABAh5(t0), C_A15to32(C_ALPHA4(t0)));
 		}
-		else {
-			t0 = LCD_RD_DAT1();
-			LCD_WR_DAT(t0);
-		}
+		else LCD_GetPixel();
 		p++;
 		t1 >>= 1;
-		cnt--;
 	}
 }
 
@@ -382,21 +409,21 @@ u8 LCD_GetBitMask(bitmask mask, u16 x, u16 y, u16 w){
 	u32 t;
 	t = y*w+x;
 	y = t & 0x7;
-	return (mask[t>>3]>>y) & 1;
+	return (mask[t/8]>>y) & 1;
 }
 
 void LCD_ResetBitMask(bitmask mask, u16 x, u16 y, u16 w){
 	u32 t;
 	t = y*w+x;
 	y = t & 0x7;
-	mask[t>>3] &= ~(1<<y);
+	mask[t/8] &= ~(1<<y);
 }
 
 void LCD_SetBitMask(bitmask mask, u16 x, u16 y, u16 w){
 	u32 t;
 	t = y*w+x;
 	y = t & 0x7;
-	mask[t>>3] |= 1<<y;
+	mask[t/8] |= 1<<y;
 }
 
 
@@ -407,30 +434,66 @@ void LCD_SetBitMask(bitmask mask, u16 x, u16 y, u16 w){
  * @param  ctx: a draw line context
  */
 void LCD_DrawLineBody(DrawLineContext ctx){
-	static u16 t;
-	static u32 c;
-	static s16 x, y;
-	static s32 dl;
+	u16 c565;
+	u32 caba;
+	s16 x, y, cx, sx, ex;
+	s32 dl;
 	for (y=ctx.ly0;y<=ctx.ly1;y++){
-		for (x=ctx.lx0;x<=ctx.lx1;x++){
-			t = LCD_RD_DAT1();
+		cx = ctx.rx*y/ctx.ry;
+		sx = max(cx-ctx.xhw,ctx.lx0);
+		ex = min(cx+ctx.xhw,ctx.lx1);
+		LCD_SetPoint_InCtx(ctx.sx+sx, ctx.sy+y);
+		for (x=sx;x<=ex;x++){
+			c565 = LCD_RD_DAT2();
 			if (!LCD_GetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy+y, ctx.bmw)){
 				dl = (ctx.rx*y-ctx.ry*x);
 				dl = dl * dl;
-				dl = (dl + (ctx.ll>>1))/ ctx.ll;
+				dl = (dl + (ctx.ll/2))/ ctx.ll;
 
-				if (ctx.llhw1>dl){
-					c = C_RGB565toABAh5(t);
-					if (dl<=ctx.llhw) {
-						c = mix_x32(ctx.fc, c, ctx.alpha32);
+				if (ctx.soft>dl){
+					caba = C_RGB565toABAh5(c565);
+					if (dl<=ctx.hard) {
+						caba = mix_x32(ctx.fc, caba, ctx.alpha32);
 						LCD_SetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy+y, ctx.bmw);
 					}
-					else c = mix_x32(ctx.fc, c, ctx.alpha32*(ctx.llhw1-dl)/ctx.grad);
-					t = C_RGBABAto565(c);
+					else caba = mix_x32(ctx.fc, caba, ctx.alpha32*(ctx.soft-dl)/ctx.grad);
+					c565 = C_RGBABAto565(caba);
 				}
 			}
-			LCD_WR_DAT(t);
+			LCD_WR_DAT(c565);
 		}
+	}
+}
+
+void LCD_DrawLineBody_Vertical(DrawLineContext ctx){
+	u16 c565;
+	u32 caba;
+	s16 x;
+	for (x=ctx.lx0;x<=ctx.lx1;x++){
+		c565 = LCD_RD_DAT2();
+		if (!LCD_GetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy, ctx.bmw)){
+			caba = C_RGB565toABAh5(c565);
+			caba = mix_x32(ctx.fc, caba, ctx.alpha32);
+			c565 = C_RGBABAto565(caba);
+			LCD_SetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy, ctx.bmw);
+		}
+		LCD_WR_DAT(c565);
+	}
+}
+
+void LCD_DrawLineBody_Horizontal(DrawLineContext ctx){
+	u16 c565;
+	u32 caba;
+	s16 y;
+	for (y=ctx.ly0;y<=ctx.ly1;y++){
+		c565 = LCD_RD_DAT2();
+		if (!LCD_GetBitMask(ctx.bm, ctx.bmx, ctx.bmy+y, ctx.bmw)){
+			caba = C_RGB565toABAh5(c565);
+			caba = mix_x32(ctx.fc, caba, ctx.alpha32);
+			c565 = C_RGBABAto565(caba);
+			LCD_SetBitMask(ctx.bm, ctx.bmx, ctx.bmy+y, ctx.bmw);
+		}
+		LCD_WR_DAT(c565);
 	}
 }
 
@@ -446,37 +509,37 @@ void LCD_DrawLineBody(DrawLineContext ctx){
  * @param  ctx: a draw line context
  */
 void LCD_DrawLineEndPart(DrawLineContext ctx){
-	static u16 t;
-	static u32 c;
-	static s16 x, y;
-	static s32 dl;
-	static u32 yy0, yy1, dd0, dd1;
+	u16 c565;
+	u32 caba;
+	s16 x, y;
+	s32 dl;
+	u32 yy0, yy1, dd0, dd1;
 	for (y=ctx.ly0;y<=ctx.ly1;y++){
 		yy0 = y*y;
 		yy1 = (y-ctx.ry)*(y-ctx.ry);
 		for (x=ctx.lx0;x<=ctx.lx1;x++){
-			t = LCD_RD_DAT1();
+			c565 = LCD_RD_DAT2();
 			if (!LCD_GetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy+y, ctx.bmw)){
 //			if (1){
 				dl = (ctx.rx*y-ctx.ry*x);
 				dl = dl * dl;
-				dl = (dl + (ctx.ll>>1))/ ctx.ll;
-				if (ctx.llhw1>dl){ // <1>
+				dl = (dl + (ctx.ll/2))/ ctx.ll;
+				if (ctx.soft>dl){ // <1>
 					dd0 = yy0 + x*x;
 					dd1 = yy1 + (x-ctx.rx)*(x-ctx.rx);
-					dl = (dd0+ctx.ll<dd1)?dd0:dl;// <2>
-					if (ctx.llhw1>dl){
-						c = C_RGB565toABAh5(t);
-						if (dl<=ctx.llhw) {// <3>
-							c = mix_x32(ctx.fc, c, ctx.alpha32);
+					dl = (dd0+ctx.ll<dd1)?dd0:(dd1+ctx.ll<dd0)?dd1:dl;// <2>
+					if (ctx.soft>dl){
+						caba = C_RGB565toABAh5(c565);
+						if (dl<=ctx.hard) {// <3>
+							caba = mix_x32(ctx.fc, caba, ctx.alpha32);
 							LCD_SetBitMask(ctx.bm, ctx.bmx+x, ctx.bmy+y, ctx.bmw);
 						}
-						else c = mix_x32(ctx.fc, c, ctx.alpha32*(ctx.llhw1-dl)/ctx.grad);
-						t = C_RGBABAto565(c);
+						else caba = mix_x32(ctx.fc, caba, ctx.alpha32*(ctx.soft-dl)/ctx.grad);
+						c565 = C_RGBABAto565(caba);
 					}
 				}
 			}
-			LCD_WR_DAT(t);
+			LCD_WR_DAT(c565);
 		}
 	}
 }
@@ -493,7 +556,7 @@ void LCD_DrawLineEndPart(DrawLineContext ctx){
  * @param  lh:  half line width |<-lh-|-lh->|
  */
 void LCD_DrawLineEnd(DrawLineContext ctx, u16 sx, u16 sy, u16 ex, u16 ey, u16 lh){
-	u16 xMin, xMax, yMin, yMax;
+	u16 xMin, xMax, yMin, yMax, t, b, l, r;
 
 	/* U: (sy<ey)||(sy==ey)&&(sx<ex)
 	 * R: (sx>ex)||(sx==ex)&&(sy<ey)
@@ -505,38 +568,46 @@ void LCD_DrawLineEnd(DrawLineContext ctx, u16 sx, u16 sy, u16 ex, u16 ey, u16 lh
 	yMin = min(sy, ey);yMax = max(sy, ey);
 
 	if ((sy<ey)||((sy==ey)&&(sx<ex))){
-		ctx.lx0 = xMin-lh-sx;
-		ctx.lx1 = xMax-sx;
-		ctx.ly0 = yMin-lh-sy;
-		ctx.ly1 = yMin-1-sy;
-		LCD_SetWindow(xMin-lh, yMin-lh, xMax-xMin+lh+1, lh);
+		l = (sx<ex)?xMin-lh:max(xMin-lh,xMax-ctx.xhw);
+		r = (sx<ex)?min(xMax,xMin+ctx.xhw):xMax;
+		t = yMin-lh;
+		b = yMin-1;
+		LCD_SetWindow(l, t, r-l+1, lh);
+		ctx.lx0 = l-sx;ctx.lx1 = r-sx;
+		ctx.ly0 = t-sy;ctx.ly1 = b-sy;
 		LCD_DrawLineEndPart(ctx);
 	}
 
 	if ((sx>ex)||((sx==ex)&&(sy<ey))){
-		ctx.lx0 = xMax+1-sx;
-		ctx.lx1 = xMax+lh-sx;
-		ctx.ly0 = yMin-lh-sy;
-		ctx.ly1 = yMax-sy;
-		LCD_SetWindow(xMax+1, yMin-lh, lh, yMax-yMin+lh+1);
+		l = xMax+1;
+		r = xMax+lh;
+		t = (sy<ey)?yMin-lh:max(yMin-lh,yMax-ctx.yhw);
+		b = (sy<ey)?min(yMax,yMin+ctx.yhw):yMax;
+		LCD_SetWindow(l, t, lh, b-t+1);
+		ctx.lx0 = l-sx;ctx.lx1 = r-sx;
+		ctx.ly0 = t-sy;ctx.ly1 = b-sy;
 		LCD_DrawLineEndPart(ctx);
 	}
 
 	if ((sy>ey)||((sy==ey)&&(sx>ex))){
-		ctx.lx0 = xMin-sx;
-		ctx.lx1 = xMax+lh-sx;
-		ctx.ly0 = yMax+1-sy;
-		ctx.ly1 = yMax+lh-sy;
-		LCD_SetWindow(xMin, yMax+1, xMax-xMin+lh+1, lh);
+		l = (sx<ex)?xMin:max(xMin,xMax-ctx.xhw);
+		r = (sx<ex)?min(xMax+lh,xMin+ctx.xhw):xMax+lh;
+		t = yMax+1;
+		b = yMax+lh;
+		LCD_SetWindow(l, t, r-l+1, lh);
+		ctx.lx0 = l-sx;ctx.lx1 = r-sx;
+		ctx.ly0 = t-sy;ctx.ly1 = b-sy;
 		LCD_DrawLineEndPart(ctx);
 	}
 
 	if ((sx<ex)||((sx==ex)&&(sy>ey))){
-		ctx.lx0 = xMin-lh-sx;
-		ctx.lx1 = xMin-1-sx;
-		ctx.ly0 = yMin-sy;
-		ctx.ly1 = yMax+lh-sy;
-		LCD_SetWindow(xMin-lh, yMin, lh, yMax-yMin+lh+1);
+		l = xMin-lh;
+		r = xMin-1;
+		t = (sy<ey)?yMin:max(yMin,yMax-ctx.yhw);
+		b = (sy<ey)?min(yMax+lh,yMin+ctx.yhw):yMax+lh;
+		LCD_SetWindow(l, t, lh, b-t+1);
+		ctx.lx0 = l-sx;ctx.lx1 = r-sx;
+		ctx.ly0 = t-sy;ctx.ly1 = b-sy;
 		LCD_DrawLineEndPart(ctx);
 	}
 }
@@ -558,33 +629,45 @@ void LCD_DrawLineEnd(DrawLineContext ctx, u16 sx, u16 sy, u16 ex, u16 ey, u16 lh
 bitmask LCD_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw
 					   , bitmask bm, u16 bmx, u16 bmy, u16 bmw){
 	s16 x, y;
-	u16 ge, gi, c565;
-	u32 rre, rri, rre1, rri1, dd, yy;
+	u16 ge, gi, lhw, c565;
+	u32 hard_e, hard_i, soft_e, soft_i, dd, yy;
 	u32 caba, fc0 = C_RGB4444toABAh5(fc);
 	u8 a = C_ALPHA4(fc), a0;
-	lw=(lw>0)?lw:1;
-	rre = (r+lw)*(r+lw); rri = (r>lw)?(r-lw)*(r-lw):0;
-	rre1 = (r+lw+1)*(r+lw+1); rri1 = (r>lw+1)?(r-lw-1)*(r-lw-1):0;
-	ge = (r+lw)*2+1; gi = (r>lw)?(r-lw)*2-1:1;
+	s16 ST;
 
-	LCD_SetWindow(cx - r - lw, cy - r - lw, (r+lw)*2+1, (r+lw)*2+1);
-	for (y=-r-lw;y<=r+lw;y++){
+	lw=(lw>0)?lw:1;
+	hard_e = (r+(lw-1)/2)*(r+(lw-1)/2); hard_i = (r>(lw-1)/2)?(r-(lw-1)/2)*(r-(lw-1)/2):0;
+	soft_e = (r+(lw+1)/2)*(r+(lw+1)/2); soft_i = (r>(lw+1)/2)?(r-(lw+1)/2)*(r-(lw+1)/2):0;
+	ge = (r+(lw-1)/2)*2+1; gi = (r>(lw-1)/2)?(r-(lw-1)/2)*2-1:1;
+	lhw = (lw+1)/2;
+
+	LCD_SetWindow(cx - r - lhw, cy - r - lhw, (r+lhw)*2+1, (r+lhw)*2+1);
+	for (y=-r-lhw;y<=r+lhw;y++){
 		yy = y*y;
-		for (x=-r-lw;x<=r+lw;x++){
+		ST = 0;
+		for (x=-r-lhw;x<=r+lhw;x++){
 			dd = x*x+yy;
-			c565 = LCD_RD_DAT1();
-			if ((!LCD_GetBitMask(bm, bmx+x, bmy+y, bmw))&&(rri1<dd) && (rre1>dd)){
-				if (dd>=rri){
-					if (dd<=rre){
-						a0 = LUT15to32[a];
-						LCD_SetBitMask(bm, bmx+x, bmy+y, bmw);
+			c565 = LCD_RD_DAT2();
+			if (!LCD_GetBitMask(bm, bmx+x, bmy+y, bmw)){
+				if ((soft_i<dd) && (soft_e>dd)){
+					if (dd>=hard_i){
+						if (dd<=hard_e){
+							a0 = C_A15to32(a);
+							LCD_SetBitMask(bm, bmx+x, bmy+y, bmw);
+						}
+						else a0 = a*(soft_e-dd)*2/ge;
 					}
-					else a0 = a*(rre1-dd)*2/ge;
+					else a0 = a*(dd-soft_i)*2/gi;
+					caba = C_RGB565toABAh5(c565);
+					caba = mix_x32(fc0, caba, a0);
+					c565 = C_RGBABAto565(caba);
+					if (ST==0) ST=1;
 				}
-				else a0 = a*(dd-rri1)*2/gi;
-				caba = C_RGB565toABAh5(c565);
-				caba = mix_x32(fc0, caba, a0);
-				c565 = C_RGBABAto565(caba);
+				else if ((x<0)&&(ST==1)) {
+					x = -x;
+					LCD_SetPoint_InCtx(cx+x+1, cy+y);
+					ST = 2;
+				}
 			}
 			LCD_WR_DAT(c565);
 		}
@@ -602,24 +685,20 @@ bitmask LCD_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw
  * @param  fc:   foreground color
  */
 void LCD_FillRectangle_RGB565(u16 left, u16 top, u16 w, u16 h, u16 fc){
-	u16 x, y;
+	u32 x;
 	LCD_SetWindow(left, top, w, h);
-	for (y=0;y<h;y++){
-		for (x=0;x<w;x++){
-			LCD_WR_DAT(fc);
-		}
+	for (x=0;x<w*h;x++){
+		LCD_WR_DAT(fc);
 	}
 }
 
 void LCD_FillRectangle_RGB4444(u16 left, u16 top, u16 w, u16 h, u16 fc){
-	u16 x, y;
+	u32 x;
 	u32 fc0 = C_RGB4444toABAh5(fc);
 	u8 a = C_ALPHA4(fc);
 	LCD_SetWindow(left, top, w, h);
-	for (y=0;y<h;y++){
-		for (x=0;x<w;x++){
-			LCD_MixPixel_x32(fc0, LUT15to32[a]);
-		}
+	for (x=0;x<w*h;x++){
+			LCD_MixPixel_x32(fc0, C_A15to32(a));
 	}
 }
 
@@ -646,7 +725,7 @@ void LCD_FillCircle_RGB565(u16 cx, u16 cy, u16 r, u16 fc){
 				c565 = fc;
 			}
 			else {
-				c565 = LCD_RD_DAT1();
+				c565 = LCD_RD_DAT2();
 				if (rr1>dd){
 					caba = C_RGB565toABAh5(c565);
 					caba = mix_x32(fc0, caba, (rr1-dd)*32/g);
@@ -670,9 +749,9 @@ void LCD_FillCircle_RGB4444(u16 cx, u16 cy, u16 r, u16 fc){
 		yy = y*y;
 		for (x=-r;x<=r;x++){
 			dd = x*x+yy;
-			c565 = LCD_RD_DAT1();
+			c565 = LCD_RD_DAT2();
 			if (rr1>dd){
-				a0 = (dd<=rr)?LUT15to32[a]:(a*(rr1-dd)*2/g);
+				a0 = (dd<=rr)?C_A15to32(a):(a*(rr1-dd)*2/g);
 				caba = C_RGB565toABAh5(c565);
 				caba = mix_x32(fc0, caba, a0);
 				c565 = C_RGBABAto565(caba);
@@ -705,8 +784,8 @@ bitmask LCD_Fill_Floodfill4_Core(u16 left, u16 top, u16 right, u16 bottom
 							   , bitmask mask, u16 bmw, u16 fc, u16 qlen
 							   , s16 *qx, s16* qy){
 
-	u16 fc0 = C_RGB4444toABAh5(fc);
-	u8 a0 = LUT15to32[C_ALPHA4(fc)];
+	u32 fc0 = C_RGB4444toABAh5(fc);
+	u8 a0 = C_A15to32(C_ALPHA4(fc));
 
 	u16 head, tail;
 	s16 cx = 0, cy = 0;
@@ -726,8 +805,44 @@ bitmask LCD_Fill_Floodfill4_Core(u16 left, u16 top, u16 right, u16 bottom
 		LCD_MixPixel_x32(fc0, a0);
 		if ((sx+cx+1<=right) && (!LCD_GetBitMask(mask, mx + cx + 1, my + cy, bmw))) PUSH(cx+1, cy);
 		if ((sx+cx>=left+1)  && (!LCD_GetBitMask(mask, mx + cx - 1, my + cy, bmw))) PUSH(cx-1, cy);
-		if ((sx+cx+1<=bottom)&& (!LCD_GetBitMask(mask, mx + cx, my + cy + 1, bmw))) PUSH(cx, cy+1);
-		if ((sx+cx>=top+1)   && (!LCD_GetBitMask(mask, mx + cx, my + cy - 1, bmw))) PUSH(cx, cy-1);
+		if ((sx+cy+1<=bottom)&& (!LCD_GetBitMask(mask, mx + cx, my + cy + 1, bmw))) PUSH(cx, cy+1);
+		if ((sx+cy>=top+1)   && (!LCD_GetBitMask(mask, mx + cx, my + cy - 1, bmw))) PUSH(cx, cy-1);
+	}
+
+	return mask;
+}
+bitmask LCD_Fill_Floodfill8_Core(u16 left, u16 top, u16 right, u16 bottom
+								 , u16 sx, u16 sy, u16 mx, u16 my
+								 , bitmask mask, u16 bmw, u16 fc, u16 qlen
+								 , s16 *qx, s16* qy){
+
+	u32 fc0 = C_RGB4444toABAh5(fc);
+	u8 a0 = C_A15to32(C_ALPHA4(fc));
+
+	u16 head, tail;
+	s16 cx = 0, cy = 0;
+	head = tail = 0;
+
+	#define PUSH(x, y) ({if(_mod(tail+1,qlen)!=head){\
+		LCD_SetBitMask(mask, mx + x, my + y, bmw);\
+		qx[tail]=x;qy[tail]=y;tail++;if(tail==qlen)tail=0;\
+	}})
+	#define POP ({cx=qx[head];cy=qy[head];head++;if(head==qlen)head=0;})
+
+	LCD_SetWindow(left, top, right - left + 1, bottom - top + 1);
+	PUSH(cx, cy);
+	while (head != tail){
+		POP;
+		LCD_SetPoint_InCtx(sx + cx, sy + cy);
+		LCD_MixPixel_x32(fc0, a0);
+		if ((sx+cx+1<=right) && (!LCD_GetBitMask(mask, mx + cx + 1, my + cy, bmw))) PUSH(cx+1, cy);
+		if ((sx+cx>=left+1)  && (!LCD_GetBitMask(mask, mx + cx - 1, my + cy, bmw))) PUSH(cx-1, cy);
+		if ((sx+cy+1<=bottom)&& (!LCD_GetBitMask(mask, mx + cx, my + cy + 1, bmw))) PUSH(cx, cy+1);
+		if ((sx+cy>=top+1)   && (!LCD_GetBitMask(mask, mx + cx, my + cy - 1, bmw))) PUSH(cx, cy-1);
+		if ((sx+cx+1<=right)&&(sx+cy+1<=bottom) && (!LCD_GetBitMask(mask, mx + cx + 1, my + cy + 1, bmw))) PUSH(cx+1, cy+1);
+		if ((sx+cx+1<=right)&&(sx+cy>=top+1)    && (!LCD_GetBitMask(mask, mx + cx + 1, my + cy - 1, bmw))) PUSH(cx+1, cy-1);
+		if ((sx+cx>=left+1)&&(sx+cy+1<=bottom)  && (!LCD_GetBitMask(mask, mx + cx - 1, my + cy + 1, bmw))) PUSH(cx-1, cy+1);
+		if ((sx+cx>=left+1)&&(sx+cy>=top+1)     && (!LCD_GetBitMask(mask, mx + cx - 1, my + cy - 1, bmw))) PUSH(cx-1, cy-1);
 	}
 
 	return mask;
@@ -764,11 +879,11 @@ void LCD_Fill_BitMaskShadow(u16 left, u16 top, u16 right, u16 bottom
 	inv = step5<0;
 	step5 = abs(step5);
 	update_min(step5, 32);
-	step5h = step5>>1;
+	step5h = step5/2;
 
 	LCD_SetWindow(left, top, w, h);
 	for (y=0;y<h;y++) for (x=0;x<w;x++){
-		c565 = LCD_RD_DAT1();
+		c565 = LCD_RD_DAT2();
 		if (!LCD_GetBitMask(mask, mx + x, my + y, bmw)){
 			sum = 0;
 			for (i=1;i<=step5;i++){
@@ -840,6 +955,14 @@ void LCD_Cmd_InitFSMC(){
 	p.FSMC_BusTurnAroundDuration = 0x00;
 	p.FSMC_CLKDivision = 0x00;
 	p.FSMC_DataLatency = 0x00;
+
+	//FSMC Spec - faster(not stable)
+	p.FSMC_AddressSetupTime = 0x01;
+	p.FSMC_AddressHoldTime = 0x00;
+	p.FSMC_DataSetupTime = 0x02;
+	p.FSMC_BusTurnAroundDuration = 0x00;
+	p.FSMC_CLKDivision = 0x00;
+	p.FSMC_DataLatency = 0x00;
 	p.FSMC_AccessMode = FSMC_AccessMode_B;
 
 	FSMC_NORSRAMInitStructure.FSMC_Bank = FSMC_Bank1_NORSRAM1;
@@ -854,7 +977,8 @@ void LCD_Cmd_InitFSMC(){
 	FSMC_NORSRAMInitStructure.FSMC_WaitSignal = FSMC_WaitSignal_Disable;
 	FSMC_NORSRAMInitStructure.FSMC_ExtendedMode = FSMC_ExtendedMode_Disable;
 	FSMC_NORSRAMInitStructure.FSMC_WriteBurst = FSMC_WriteBurst_Disable;
-	FSMC_NORSRAMInitStructure.FSMC_AsynchronousWait = FSMC_AsynchronousWait_Disable;
+//	FSMC_NORSRAMInitStructure.FSMC_AsynchronousWait = FSMC_AsynchronousWait_Disable;
+	FSMC_NORSRAMInitStructure.FSMC_AsynchronousWait = FSMC_AsynchronousWait_Enable;
 	FSMC_NORSRAMInitStructure.FSMC_ReadWriteTimingStruct = &p;
 	FSMC_NORSRAMInitStructure.FSMC_WriteTimingStruct = &p;
 

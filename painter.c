@@ -33,7 +33,7 @@ static GraphicContext _d_g_ctx = {
  *                  try 0xaa, you may like it.
  */
 bitmask Painter_SetupContextBitmask(u16 w, u16 h, u8 pattern){
-	u16 i, size = (u32)w*(u32)h>>3;
+	u16 i, size = (u32)w*(u32)h/8;
 	if (_d_dl_ctx.bm != 0L) free(_d_dl_ctx.bm);
 	_d_dl_ctx.bm = (bitmask)malloc(size);
 	_d_dl_ctx.bmw = w;
@@ -43,7 +43,7 @@ bitmask Painter_SetupContextBitmask(u16 w, u16 h, u8 pattern){
 }
 
 // Move default context bitmask start point
-void Painter_LocateContextBitmask(s16 x, s16 y){
+void Painter_LocateContextBitmask(u16 x, u16 y){
 	_d_dl_ctx.bmx =x;
 	_d_dl_ctx.bmy =y;
 }
@@ -66,47 +66,60 @@ void Painter_SetTransform(s32 a, s32 b, s32 c, s32 d, s32 e, s32 f){
  * @param  sy:   y of start point
  * @param  ex:   x of end point
  * @param  ey:   y of end point
- * @param  fc:   foreground color
+ * @param  fc:   foreground color in RGB4444
  * @param  lw:   line width |<-lw->|
  * @param  flag: draw line options, available: PAINTER_DRAW_BM_HOLD
  * @return default context bitmask after line drawn
  */
 bitmask Painter_DrawLine(u16 sx, u16 sy, u16 ex, u16 ey, u16 fc, u16 lw, u8 flag){
 
+	#define ctx _d_dl_ctx
+
 	lw = (lw==0)?1:lw;
-	u16 lh = (lw+1)>>1;
-	_d_dl_ctx.rx = (s16)ex - (s16)sx;
-	_d_dl_ctx.ry = (s16)ey - (s16)sy;
-	_d_dl_ctx.ll = _d_dl_ctx.rx*_d_dl_ctx.rx + _d_dl_ctx.ry*_d_dl_ctx.ry;
-	//assert_param(_d_dl_ctx.ll>lw*lw);
-	_d_dl_ctx.llhw = lw * lw >> 2;
-	_d_dl_ctx.llhw1 = (lw+1) * (lw+1) >> 2;
-	_d_dl_ctx.grad = _d_dl_ctx.llhw1 - _d_dl_ctx.llhw;
-	_d_dl_ctx.lx0 = min(_d_dl_ctx.rx,0);
-	_d_dl_ctx.lx1 = max(_d_dl_ctx.rx,0);
-	_d_dl_ctx.ly0 = min(_d_dl_ctx.ry,0);
-	_d_dl_ctx.ly1 = max(_d_dl_ctx.ry,0);
-	_d_dl_ctx.fc = C_RGB4444toABAh5(fc);
-	_d_dl_ctx.alpha32 = LCD_ScaleAlpha_32(C_ALPHA4(fc), 15);
+	u16 lhw = (lw)/2+1;
+	ctx.sx = sx;
+	ctx.sy = sy;
+	ctx.rx = (s16)ex - (s16)sx;
+	ctx.ry = (s16)ey - (s16)sy;
+	ctx.ll = ctx.rx*ctx.rx + ctx.ry*ctx.ry;
+	//assert_param(ctx.ll>lw*lw);
+	ctx.xhw = ctx.ry?(abs(ctx.rx)+abs(ctx.ry))*lhw/ctx.ry:abs(ctx.rx);
+	ctx.yhw = ctx.rx?(abs(ctx.ry)+abs(ctx.rx))*lhw/ctx.rx:abs(ctx.ry);
+	ctx.hard = ((lw-1) * (lw-1)+2)/4;
+	ctx.soft = ((lw+1) * (lw+1)+2)/4;
+	ctx.grad = ctx.soft - ctx.hard;
+	ctx.lx0 = min(ctx.rx,0);
+	ctx.lx1 = max(ctx.rx,0);
+	ctx.ly0 = min(ctx.ry,0);
+	ctx.ly1 = max(ctx.ry,0);
+	ctx.fc = C_RGB4444toABAh5(fc);
+	ctx.alpha32 = C_A15to32(C_ALPHA4(fc));
 
 	if (0 == (flag & PAINTER_DRAW_BM_HOLD)) {
-		Painter_SetupContextBitmask(abs(_d_dl_ctx.rx)+lh+lh+1, abs(_d_dl_ctx.ry)+lh+lh+1, 0);
-		_d_dl_ctx.bmx += lh + sx - min(sx, ex);
-		_d_dl_ctx.bmy += lh + sy - min(sy, ey);
+		Painter_SetupContextBitmask(abs(ctx.rx)+lhw+lhw+1, abs(ctx.ry)+lhw+lhw+1, 0);
+		ctx.bmx += lhw + sx - min(sx, ex);
+		ctx.bmy += lhw + sy - min(sy, ey);
 	}
 
-	LCD_SetWindow(min(sx,ex), min(sy,ey), abs(_d_dl_ctx.rx)+1, abs(_d_dl_ctx.ry)+1);
-	LCD_DrawLineBody(_d_dl_ctx);
-	LCD_DrawLineEnd(_d_dl_ctx, sx, sy, ex, ey, lh);
-	_d_dl_ctx.bmx += _d_dl_ctx.rx;
-	_d_dl_ctx.bmy += _d_dl_ctx.ry;
-	_d_dl_ctx.rx = -_d_dl_ctx.rx;
-	_d_dl_ctx.ry = -_d_dl_ctx.ry;
-	LCD_DrawLineEnd(_d_dl_ctx, ex, ey, sx, sy, lh);
-	_d_dl_ctx.bmx += _d_dl_ctx.rx;
-	_d_dl_ctx.bmy += _d_dl_ctx.ry;
+	LCD_SetWindow(min(sx,ex), min(sy,ey), abs(ctx.rx)+1, abs(ctx.ry)+1);
+	if (ctx.ry == 0) LCD_DrawLineBody_Vertical(ctx);
+	else if (ctx.rx == 0) LCD_DrawLineBody_Horizontal(ctx);
+	else LCD_DrawLineBody(ctx);
 
-	return _d_dl_ctx.bm;
+	LCD_DrawLineEnd(ctx, sx, sy, ex, ey, lhw);
+	ctx.bmx += ctx.rx;
+	ctx.bmy += ctx.ry;
+	ctx.sx = ex;
+	ctx.sy = ey;
+	ctx.rx = -ctx.rx;
+	ctx.ry = -ctx.ry;
+	LCD_DrawLineEnd(ctx, ex, ey, sx, sy, lhw);
+	ctx.bmx += ctx.rx;
+	ctx.bmy += ctx.ry;
+
+	return ctx.bm;
+
+	#undef ctx
 }
 
 /**
@@ -121,15 +134,12 @@ bitmask Painter_DrawLine(u16 sx, u16 sy, u16 ex, u16 ey, u16 fc, u16 lw, u8 flag
  */
 bitmask Painter_DrawPoly(u16* xs, u16* ys, u16 size, u16 fc, u16 lw, u8 flag){
 	u16 i, xMin, xMax, yMin, yMax;
-	s16 bmx, bmy;
+	s16 omx, omy;
+
+	#define ctx _d_dl_ctx
 
 	lw = (lw==0)?1:lw;
-	u16 lh = (lw+1)>>1;
-	_d_dl_ctx.llhw = lw * lw >> 2;
-	_d_dl_ctx.llhw1 = (lw+1) * (lw+1) >> 2;
-	_d_dl_ctx.grad = _d_dl_ctx.llhw1 - _d_dl_ctx.llhw;
-	_d_dl_ctx.fc = C_RGB4444toABAh5(fc);
-	_d_dl_ctx.alpha32 = LCD_ScaleAlpha_32(C_ALPHA4(fc), 15);
+	u16 lhw = (lw)/2+1;
 
 	xMin = xMax = xs[0];
 	yMin = yMax = ys[0];
@@ -139,58 +149,31 @@ bitmask Painter_DrawPoly(u16* xs, u16* ys, u16 size, u16 fc, u16 lw, u8 flag){
 		update_max(xMax, xs[i]);
 		update_max(yMax, ys[i]);
 	}
-	xMin -= lh;yMin -= lh;
-	xMax += lh;yMax += lh;
+	xMin -= lhw;yMin -= lhw;
+	xMax += lhw;yMax += lhw;
+
 	if (0 == (flag & PAINTER_DRAW_BM_HOLD)) {
 		Painter_SetupContextBitmask(xMax-xMin+1, yMax-yMin+1, 0);
-		_d_dl_ctx.bmx = xs[0] - xMin;
-		_d_dl_ctx.bmy = ys[0] - yMin;
+		ctx.bmx = xs[0] - xMin;
+		ctx.bmy = ys[0] - yMin;
 	}
-	bmx = _d_dl_ctx.bmx;bmy = _d_dl_ctx.bmy;
+	omx = ctx.bmx-xs[0]; omy = ctx.bmy-ys[0];
 
+	flag |= PAINTER_DRAW_BM_HOLD;
 	for (i=1;i<size;i++){
-		_d_dl_ctx.rx = (s16)xs[i] - (s16)xs[i-1];
-		_d_dl_ctx.ry = (s16)ys[i] - (s16)ys[i-1];
-		_d_dl_ctx.ll = _d_dl_ctx.rx*_d_dl_ctx.rx + _d_dl_ctx.ry*_d_dl_ctx.ry;
-		_d_dl_ctx.lx0 = min(_d_dl_ctx.rx,0);
-		_d_dl_ctx.lx1 = max(_d_dl_ctx.rx,0);
-		_d_dl_ctx.ly0 = min(_d_dl_ctx.ry,0);
-		_d_dl_ctx.ly1 = max(_d_dl_ctx.ry,0);
-		_d_dl_ctx.bmx = bmx + xs[i-1] - xs[0];
-		_d_dl_ctx.bmy = bmy + ys[i-1] - ys[0];
-		LCD_SetWindow(min(xs[i-1],xs[i]), min(ys[i-1],ys[i]), abs(_d_dl_ctx.rx)+1, abs(_d_dl_ctx.ry)+1);
-		LCD_DrawLineBody(_d_dl_ctx);
-		LCD_DrawLineEnd(_d_dl_ctx, xs[i-1], ys[i-1], xs[i], ys[i], lh);
-		_d_dl_ctx.bmx += _d_dl_ctx.rx;
-		_d_dl_ctx.bmy += _d_dl_ctx.ry;
-		_d_dl_ctx.rx = -_d_dl_ctx.rx;
-		_d_dl_ctx.ry = -_d_dl_ctx.ry;
-		LCD_DrawLineEnd(_d_dl_ctx, xs[i], ys[i], xs[i-1], ys[i-1], lh);
+		Painter_LocateContextBitmask(omx+xs[i-1], omy+ys[i-1]);
+		Painter_DrawLine(xs[i-1], ys[i-1], xs[i], ys[i], fc, lw, flag);
 	}
 
 	if (flag & PAINTER_DRAW_POLY_CLOSE){
-		_d_dl_ctx.rx = (s16)xs[0] - (s16)xs[size-1];
-		_d_dl_ctx.ry = (s16)ys[0] - (s16)ys[size-1];
-		_d_dl_ctx.ll = _d_dl_ctx.rx*_d_dl_ctx.rx + _d_dl_ctx.ry*_d_dl_ctx.ry;
-		_d_dl_ctx.lx0 = min(_d_dl_ctx.rx,0);
-		_d_dl_ctx.lx1 = max(_d_dl_ctx.rx,0);
-		_d_dl_ctx.ly0 = min(_d_dl_ctx.ry,0);
-		_d_dl_ctx.ly1 = max(_d_dl_ctx.ry,0);
-		_d_dl_ctx.bmx = bmx + xs[size-1] - xs[0];
-		_d_dl_ctx.bmy = bmy + ys[size-1] - ys[0];
-		LCD_SetWindow(min(xs[size-1],xs[0]), min(ys[size-1],ys[0]), abs(_d_dl_ctx.rx)+1, abs(_d_dl_ctx.ry)+1);
-		LCD_DrawLineBody(_d_dl_ctx);
-		LCD_DrawLineEnd(_d_dl_ctx, xs[size-1], ys[i-1], xs[0], ys[0], lh);
-		_d_dl_ctx.bmx += _d_dl_ctx.rx;
-		_d_dl_ctx.bmy += _d_dl_ctx.ry;
-		_d_dl_ctx.rx = -_d_dl_ctx.rx;
-		_d_dl_ctx.ry = -_d_dl_ctx.ry;
-		LCD_DrawLineEnd(_d_dl_ctx, xs[0], ys[0], xs[size-1], ys[size-1], lh);
+		Painter_LocateContextBitmask(omx+xs[i-1], omy+ys[i-1]);
+		Painter_DrawLine(xs[i-1], ys[i-1], xs[0], ys[0], fc, lw, flag);
 	}
 
-	_d_dl_ctx.bmx = bmx;_d_dl_ctx.bmy = bmy;
+	ctx.bmx = omx+xs[0];ctx.bmy = omy+ys[0];
 
-	return _d_dl_ctx.bm;
+	return ctx.bm;
+	#undef ctx
 }
 
 /**
@@ -204,11 +187,12 @@ bitmask Painter_DrawPoly(u16* xs, u16* ys, u16 size, u16 fc, u16 lw, u8 flag){
  * @return default context bitmask after circle drawn
  */
 bitmask Painter_DrawCircle(u16 cx, u16 cy, u16 r, u16 fc, u16 lw, u8 flag){
+	u16 lhw = (lw)/2+1;
 
 	if (0 == (flag & PAINTER_DRAW_BM_HOLD)) {
-		Painter_SetupContextBitmask(r+r+1, r+r+1, 0);
-		_d_dl_ctx.bmx = r;
-		_d_dl_ctx.bmy = r;
+		Painter_SetupContextBitmask((r+lhw)*2+1, (r+lhw)*2+1, 0);
+		_d_dl_ctx.bmx = r+lhw;
+		_d_dl_ctx.bmy = r+lhw;
 	}
 
 	return LCD_DrawCircle(cx, cy, r, fc, lw, _d_dl_ctx.bm, _d_dl_ctx.bmx, _d_dl_ctx.bmy, _d_dl_ctx.bmw);
@@ -306,7 +290,7 @@ void Painter_BitMaskImage(const u16* data, u16 left, u16 top, const bitmask mask
 void Painter_PutChar(const u8* glyph, u16 left, u16 top, u16 fc){
 	//head = skip, font_size, width;
 	LCD_SetWindow(left, top, glyph[2], glyph[1]);
-	LCD_PutChar_RGB4444(glyph + glyph[0], glyph[2]*glyph[1]>>1, fc);
+	LCD_PutChar_RGB4444(glyph + glyph[0], glyph[2]*glyph[1]/2, fc);
 }
 
 
@@ -324,28 +308,35 @@ void Painter_PutChar(const u8* glyph, u16 left, u16 top, u16 fc){
  */
 void Painter_PutString(const u16* str, u8 font_size, u16 fc, u16 bc,
 					 u16 left, u16 top, u16 w, u16 h, u8 flag){
-	u16 *fs_index_segment;
-	u8 *glyph;
+	u32 *fs_index_segment;
+	u8 *glyph = 0L;
 
 	u16 x, y, i;
 	u16 sc = (((~fc)&0xfff0)|(fc&0xf>>1));
 
 	i = 1;
-	while (i && (font_size != res_glyph_index[i+1])) i += res_glyph_index[i];
+	while (i && (font_size != res_glyph_index[i+1])) i = res_glyph_index[i];
 	if (i == 0) return;
 //	assert_msg(i>0, "No font of this size.");
-	fs_index_segment = (u16*)res_glyph_index + i + 2;
+	fs_index_segment = (u32*)res_glyph_index + i + 2;
 
 	if (C_ALPHA4(bc)){
-		LCD_FillRectangle_RGB4444(left, top, w, h, bc);
+		if (!(flag & PAINTER_STR_SFLUSH)) LCD_FillRectangle_RGB4444(left, top, w, h, bc);
+	}
+	else {
+			flag &= ~PAINTER_STR_SFLUSH;
 	}
 
 	x = y = i =0;
-	while ((str[i])&&(y<h)){
+	while ((str[i])&&(y+font_size<=h)){
 		x = 0;
 		while ((str[i])&&(x<w)){
 			glyph = (u8*)res_glyphs + fs_index_segment[str[i]-1];
-			if (x+glyph[2]>=w) break;
+			if (x+glyph[2]>w) {
+				if (flag & PAINTER_STR_SFLUSH) LCD_FillRectangle_RGB4444(left+x, top+y, w-x, glyph[1], bc);
+				break;
+			}
+			if (flag & PAINTER_STR_SFLUSH) LCD_FillRectangle_RGB4444(left+x, top+y, glyph[2], glyph[1], bc);
 			if (flag & PAINTER_STR_SHADOW_M) {
 					Painter_PutChar(glyph, left+x+(flag & PAINTER_STR_SHADOW_M),
 								   top+y+(flag & PAINTER_STR_SHADOW_M), sc);
@@ -355,6 +346,10 @@ void Painter_PutString(const u16* str, u8 font_size, u16 fc, u16 bc,
 			i++;
 		}
 		y += font_size;
+	}
+	if ((!str[i])&&(flag & PAINTER_STR_SFLUSH)) {
+		LCD_FillRectangle_RGB4444(left+x, top+y-font_size, w-x, glyph?glyph[1]:h, bc);
+		LCD_FillRectangle_RGB4444(left, top+y, w, h-y, bc);
 	}
 }
 
@@ -368,12 +363,15 @@ void Painter_Fill_Floodfill(u16 left, u16 top, u16 right, u16 bottom
 		bmw = _d_dl_ctx.bmw;
 	}
 
-	_UNUSED(flag);
-	#define MAXLEN ((PAINTER_SCR_HEI + PAINTER_SCR_WID)*1)
+//	_UNUSED(flag);
+	#define MAXLEN ((PAINTER_SCR_HEI + PAINTER_SCR_WID)*2)
 	u16 qlen = MAXLEN;
 	s16 qx[MAXLEN], qy[MAXLEN];
 
-	LCD_Fill_Floodfill4_Core(left, top, right, bottom, sx, sy, mx, my
+	if (flag & PAINTER_FILL_CONNECT8)
+		LCD_Fill_Floodfill8_Core(left, top, right, bottom, sx, sy, mx, my
+								 , mask, bmw, fc, qlen, qx, qy);
+	else LCD_Fill_Floodfill4_Core(left, top, right, bottom, sx, sy, mx, my
 							 , mask, bmw, fc, qlen, qx, qy);
 
 //	free(qx);free(qy);

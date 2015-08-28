@@ -24,6 +24,9 @@
 #define PAINTER_DRAW_BM_HOLD	0x1
 #define PAINTER_DRAW_POLY_CLOSE	0x2
 
+
+#define PAINTER_FILL_CONNECT8	0x10
+
 // /* Fill options:
 //  * 	PAINTER_FILL_FFLEN:			search queue length start bits
 //  * 								range:0~15
@@ -35,14 +38,15 @@
  * 	PAINTER_STR_SHADOW:			Text shadow length start bits
  * 								range 0~7
  */
-#define PAINTER_STR_SHADOW	0x1
+#define PAINTER_STR_SHADOW		0x1
 #define PAINTER_STR_SHADOW_M	0x3
+#define PAINTER_STR_SFLUSH		0x4
 
-extern const u16 res_glyph_index[];
+extern const u32 res_glyph_index[];
 extern const u8 res_glyphs[];
 
 extern bitmask Painter_SetupContextBitmask(u16 w, u16 h, u8 pattern);
-extern void Painter_LocateContextBitmask(s16 x, s16 y);
+extern void Painter_LocateContextBitmask(u16 x, u16 y);
 extern void Painter_TranslateContextBitmask(s16 x, s16 y);
 
 extern void Painter_SetTransform(s32 a, s32 b, s32 c, s32 d, s32 e, s32 f);
