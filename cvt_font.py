@@ -112,7 +112,7 @@ def render(charset, fontsize, datalist=[]): # Render each char to raw grayscales
 		else:
 			padding_w = 0
 #		padding_h = (fontsize - size[1])/2
-		padding_h = fontsize - size[1]
+		padding_h = fontsize - size[1]-1
 		if width==fontsize: padding_h = PADDING
 		print("size %s\t:%s\t:%s" % (char.encode('utf-8'), width, padding_h))
 		painter.text((padding_w, padding_h), char, font=font, fill = (255))	
